@@ -3,14 +3,17 @@ from PySide2.QtWidgets import (QApplication, QDialog, QVBoxLayout,
                                QLineEdit, QPushButton, QLabel,
                                QWidget, QVBoxLayout, QMainWindow)
 from PySide2.QtCore import QSize
+from PySide2.QtGui import QIcon
+import os
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
 class InputDialog(QDialog):
     def __init__(self, title, info, parent=None):
         super().__init__(parent)
         # self.init_ui()
         self.t = title
         self.i = info
-
+        self.setWindowIcon(QIcon())
 
 
         self.setWindowTitle(self.t)

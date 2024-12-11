@@ -7,7 +7,7 @@ from PySide2.QtWidgets import (
     QVBoxLayout, QWidget, QTabWidget, QPushButton,
     QFileDialog, QLineEdit, QTextEdit, QListWidget,QListWidgetItem,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QMessageBox,
-    QStackedLayout,QComboBox, QMenuBar, QMenu, QAction,QToolBar
+    QStackedLayout,QComboBox, QMenuBar, QMenu,QToolBar,QAction
 
 )
 from PySide2.QtCore import QSize, Qt
@@ -83,6 +83,7 @@ class header(QWidget):
         self.path_label = QLineEdit(Global_Vars.Project)
         self.path_label.textChanged.connect(self.change_work)
         self.path_label.setStyleSheet("font-size:20px;}")
+        self.path_label.setEnabled(False)
         btn_open_file = QPushButton()
         btn_open_file.setIcon(QIcon(os.path.join(base_dir, "icon", "opened_folder.ico")))
         btn_open_file.pressed.connect(lambda: os.startfile(self.path_label.text() + "/2.Project/"))
@@ -418,24 +419,7 @@ class MainWindow(QMainWindow):
         """)
         self.setCentralWidget(Main)
 
-# def error(message):
-#     dig = QMessageBox()
-#     dig.setWindowTitle("error")
-#     dig.setText(message)
-#     button = dig.exec_()
-#
-#
-# def is_chinese(string):
-#     """
-#     检查整个字符串是否包含中文
-#     :param string: 需要检查的字符串
-#     :return: bool
-#     """
-#     for ch in string:
-#         if u'\u4e00' <= ch <= u'\u9fff':
-#             return True
-#
-#     return False
+
 
 app = QApplication(sys.argv)
 w = MainWindow()

@@ -116,12 +116,16 @@ def create_sub_folders(path):
     subs = ["1.File","2.Project","3.Package","4.Output"]
     # Dccs = ["AE","Blender","C4d","Houdini","Maya","MD","PR","UE"]
     outs = ["Sequence","Video"]
+    assets = ["Documents","HDRI","Image","Model","PS+AI","Temp","Texture","Video"]
     for sub in subs:
         os.makedirs(path+"/"+sub)
     # for Dcc in Dccs:
     #     os.makedirs(path+"/2.Project/"+Dcc)
     for out in outs:
         os.makedirs(path+"/4.Output/"+out)
+
+    for asset in assets:
+        os.makedirs(path+"/1.File/"+asset)
 
 # _Root_Path = "E:/test_project_file"
 # json_2_path(_Root_Path + "/Folder.json")

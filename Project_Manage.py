@@ -33,6 +33,21 @@ class project_list(QListWidget):
         if path:
             os.startfile(path)
 
+class Opensub(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("打开子文件夹")
+        self.layout = QVBoxLayout()
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        assets = ["Documents", "HDRI", "Image", "Model", "PS+AI", "Temp", "Texture", "Video"]
+        for asset in assets:
+            open_btn = QPushButton(asset)
+            self.layout.addWidget(open_btn)
+            open_btn.setCheckable(False)
+            open_btn.setChecked(False)
+            open_btn.pressed.connect(lambda checked=False,a=asset: os.startfile(os.path.join(Global_Vars.Project,'1.File',a)))
+        self.setLayout(self.layout)
+
 class project_manager(QWidget):
     def __init__(self,class_intance,header):
         super().__init__()
@@ -56,6 +71,10 @@ class project_manager(QWidget):
         btn_setproject.pressed.connect(self.change_project)
         btn_edit_file = QPushButton("")
         btn_edit_file.setIcon(QIcon(os.path.join(base_dir, "icon", "edit_file.ico")))
+        btn_open_sub = QPushButton("")
+        btn_open_sub.setIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        btn_open_sub.pressed.connect(self.opensub)
+
 
         # layout
         layout_create = QVBoxLayout()
@@ -74,7 +93,8 @@ class project_manager(QWidget):
         layout_list.addWidget(btn_refresh)
 
         layout_set.addWidget(btn_setproject)
-        layout_set.addWidget(btn_edit_file)
+        # layout_set.addWidget(btn_edit_file)
+        layout_set.addWidget(btn_open_sub)
         layout_set.addStretch()
 
         layout_main.addLayout(layout_create)
@@ -119,6 +139,10 @@ class project_manager(QWidget):
             self.wm.load_projects()
             Global_Vars.Project = current_item.project_path
             self.header.project_change(current_item.project_path)
+
+    def opensub(self):
+        sub_window = Opensub()
+        sub_window.exec_()
 
 
 

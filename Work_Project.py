@@ -3,14 +3,17 @@ from PySide2.QtWidgets import (
     QLabel, QTabWidget, QWidget, QPushButton,
     QHBoxLayout, QVBoxLayout, QStackedLayout, QLineEdit, QListWidget,
     QComboBox, QDialog, QDialogButtonBox,
-    QTextEdit, QListWidgetItem, QMessageBox
+    QTextEdit, QListWidgetItem, QMessageBox, QTableView, QHeaderView,
+    QSplitter
 )
-from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint
-from PySide2.QtGui import QFont, QIcon, QDrag
+from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint, QSortFilterProxyModel, Signal
+from PySide2.QtGui import QFont, QIcon, QDrag, QStandardItemModel, QStandardItem
 
-from diglog import InputDialog
+# from diglog import InputDialog
 
 import Function
+
+from datetime import datetime
 
 import Global_Vars
 
@@ -48,12 +51,48 @@ class editnotesDialog(QDialog):
 
         self.setLayout(self.layout)
 
+class InputDialog(QDialog):
+    def __init__(self, title, info, parent=None):
+        super().__init__(parent)
+        # self.init_ui()
+        self.t = title
+        self.i = info
+        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+
+
+        self.setWindowTitle(self.t)
+        self.setMinimumSize(QSize(300,200))
+
+        layout = QVBoxLayout()
+
+        self.label = QLabel(self.i)
+        self.line_edit = QLineEdit()
+        self.ok_button = QPushButton("确定")
+        self.cancel_button = QPushButton("取消")
+
+        self.ok_button.clicked.connect(self.accept_and_destroy)
+        self.cancel_button.clicked.connect(self.reject)
+
+        layout.addWidget(self.label)
+        layout.addWidget(self.line_edit)
+        layout.addWidget(self.ok_button)
+        layout.addWidget(self.cancel_button)
+
+        self.setLayout(layout)
+
+    def accept_and_destroy(self):
+        self.accept()  # 关闭对话框并返回 Accepted
+        self.deleteLater()  # 销毁对话框
+
+    def get_input(self):
+        return self.line_edit.text()
+
 class ProjectDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("创建新工程")
         self.layout = QVBoxLayout()
-
+        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
         self.content_label = QLabel("内容名称:")
         self.layout.addWidget(self.content_label)
 
@@ -64,8 +103,11 @@ class ProjectDialog(QDialog):
         self.layout.addWidget(self.dcc_label)
 
         self.dcc_select = QComboBox()
+        index = 0
         for key in _format_:
             self.dcc_select.addItem(key)
+            self.dcc_select.setItemIcon(index,QIcon(os.path.join(base_dir,"icon",key)))
+            index+=1
         self.layout.addWidget(self.dcc_select)
 
         self.notes_label = QLabel("备注:")
@@ -80,7 +122,6 @@ class ProjectDialog(QDialog):
         self.layout.addWidget(button_box)
 
         self.setLayout(self.layout)
-
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -124,14 +165,45 @@ class ProjectVersionDialog(QDialog):
                 item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']}")
                 item.setData(Qt.UserRole,project)
                 self.list.addItem(item)
+class Version_Table(QStandardItemModel):
+    dataChangedSignal = Signal(int,int,str)
+    def __init__(self):
+        super().__init__()
+        self.setHorizontalHeaderLabels(['版本', '最后修改时间', '备注'])
+        self.setColumnCount(3)
+    def flags(self, index):
+        default_flag = super().flags(index)
+        if index.isValid():
+            return default_flag | Qt.ItemIsDragEnabled
+        return default_flag
 
-    # def add_Item(self, version, describe):
-    #     item_text = f"版本 {version}: {describe}"
-    #     self.list.addItem(item_text)
+    def mimeTypes(self):
+        return ["text/uri-list"]
 
-    # def add_Item(self,version,describe):
-    #     self.list.addItem(version+"  "+describe)
+    def mimeData(self, indexes):
 
+        mime_data = QMimeData()
+        # urls = ""
+        item = self.item
+        for index in indexes:
+            if index.column() == 0:
+                project = self.data(index.siblingAtColumn(0),Qt.ItemDataRole.UserRole)
+                path = project["path"]
+                # urls = path
+                mime_data.setUrls([QUrl.fromLocalFile(path)])
+        return mime_data
+
+    def setData(self, index, value, role=Qt.EditRole):
+        if not index.isValid():
+            return False
+
+        if role == Qt.EditRole and index.column() == 2:  # Only the last column can be edited
+            # Get the corresponding first column item
+            first_column_item = self.item(index.row(), 0)
+            if role == Qt.EditRole:
+                self.dataChangedSignal.emit(index.row(),index.column(),value)
+                # 调用父类的 setData 方法以确保实际的数据更新
+            return super().setData(index, value, role)
 class Work_Project(QWidget):
     def __init__(self):
         super().__init__()
@@ -164,17 +236,43 @@ class Work_Project(QWidget):
         self.list_project.currentItemChanged.connect(self.get_describe)
         self.list_project.setStyleSheet("font-size:20px;}")
 
+        self.table_version = QTableView()
+        self.proxy_model = QSortFilterProxyModel()
+        self.version_model = Version_Table()
+        self.version_model.dataChangedSignal.connect(self.edit_version_note)
+        self.proxy_model.setSourceModel(self.version_model)
+        self.proxy_model.sort(1, Qt.SortOrder.DescendingOrder)
+        self.table_version.setModel(self.proxy_model)
+        self.table_version.setSelectionBehavior(QTableView.SelectRows)
+        self.table_version.setAlternatingRowColors(True)
+        self.table_version.setShowGrid(False)
+        self.table_version.verticalHeader().setVisible(False)
+        self.table_version.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_version.setDragEnabled(True)
+        header = self.table_version.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Interactive)
+        header.setSortIndicatorShown(True)
+        header.setSectionsClickable(True)
+        header.sectionClicked.connect(self.on_header_clicked)
+        # self.version_model.sort(0)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.list_project)
+        splitter.addWidget(self.table_version)
+        splitter.setStretchFactor(0,1)
+        splitter.setStretchFactor(1,1)
+
         btn_new = QPushButton()
         btn_new.setIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
         btn_new.setMinimumSize(QSize(40,40))
         btn_new.setToolTip("新建文件")
         btn_new.pressed.connect(self.create_new_project)
 
-        btn_open_project =QPushButton()
+        btn_open_project = QPushButton()
         btn_open_project.setIcon(QIcon(os.path.join(base_dir,"icon","open.ico")))
         btn_open_project.setToolTip("打开文件")
         btn_open_project.setMinimumSize(QSize(40,40))
-        btn_open_project.pressed.connect(lambda: print(Global_Vars.Root+Global_Vars.User+Global_Vars.Project))
+        btn_open_project.pressed.connect(lambda: os.startfile(f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}'))
 
         btn_update = QPushButton()
         btn_update.setIcon(QIcon(os.path.join(base_dir,"icon","updata.ico")))
@@ -182,17 +280,17 @@ class Work_Project(QWidget):
         btn_update.setToolTip("版本升级")
         btn_update.pressed.connect(self.upgrade_selected_project)
 
-        btn_list = QPushButton()
-        btn_list.setIcon(QIcon(os.path.join(base_dir,"icon","version.ico")))
-        btn_list.setMinimumSize(QSize(40,40))
-        btn_list.setToolTip("查看所有版本")
-        btn_list.pressed.connect(self.show_all_versions)
+        # btn_list = QPushButton()
+        # btn_list.setIcon(QIcon(os.path.join(base_dir,"icon","version.ico")))
+        # btn_list.setMinimumSize(QSize(40,40))
+        # btn_list.setToolTip("查看所有版本")
+        # btn_list.pressed.connect(self.show_all_versions)
 
         btn_refresh = QPushButton()
         btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
         btn_refresh.setMinimumSize(QSize(40,40))
         btn_refresh.setToolTip("刷新")
-        btn_refresh.pressed.connect(self.load_projects)
+        btn_refresh.pressed.connect(self.update_list)
 
         self.des_lab = QLabel("describe")
         self.des_lab.setMinimumWidth(150)
@@ -205,14 +303,16 @@ class Work_Project(QWidget):
         layout_tools.addWidget(btn_new)
         layout_tools.addWidget(btn_open_project)
         layout_tools.addWidget(btn_update)
-        layout_tools.addWidget(btn_list)
+        # layout_tools.addWidget(btn_list)
         layout_tools.addWidget(btn_refresh)
         layout_tools.addStretch()
 
         # layout.addLayout(layout_btn)
         layout.addLayout(layout_tools)
-        layout.addWidget(self.list_project)
-        layout.addWidget(self.des_lab)
+        # layout.addWidget(self.list_project)
+        # layout.addWidget(self.table_version)
+        layout.addWidget(splitter)
+        # layout.addWidget(self.des_lab)
 
 
         main_layout.addLayout(name_layout)
@@ -224,7 +324,7 @@ class Work_Project(QWidget):
         self.get_work_path(Global_Vars.Project)
         self.load_projects()
 
-    def get_work_path(self,text):
+    def get_work_path(self, text):
         self.des_lab.setText(text)
         Global_Vars.Project = text
 
@@ -240,7 +340,7 @@ class Work_Project(QWidget):
 
     def add_name_input(self):
         di = InputDialog("add!", "name?")
-        if di.exec_() == QDialog.Accepted:
+        if di.exec_():
             value = di.get_input()
             self.project_combo.addItem(value)
             if self.project_combo.count():
@@ -256,9 +356,7 @@ class Work_Project(QWidget):
             for proj in projs:
                 self.project_combo.addItem(proj)
 
-    # def auto_refresh_list(self):
-    #     if not self.path_label:
-    #         self.load_projects()
+
     def load_projects(self):
         # self.change_combo()
         Global_Vars.task = self.project_combo.currentText()
@@ -273,11 +371,13 @@ class Work_Project(QWidget):
             for project in projects:
                 content_name = project['content']
                 version = project['version']
+                dcc = project['dcc']
 
                 if content_name not in projects_info or projects_info[content_name]['version'] < version:
                     projects_info[content_name] = {
                         'version': version,
-                        'project': project
+                        'project': project,
+                        'dcc': dcc
                     }
                 else:
                     QMessageBox.warning(self, "警告", "工程已经存在")
@@ -286,8 +386,10 @@ class Work_Project(QWidget):
             for content_name, info in projects_info.items():
                 item_text = f"{content_name} v{info['version']}"
                 item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, info['project'])
+                item.setData(Qt.ItemDataRole.UserRole, info['project'])
+                item.setIcon(QIcon(os.path.join(base_dir,"icon",info["dcc"])))
                 self.list_project.addItem(item)
+
 
     def create_new_project(self):
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
@@ -322,11 +424,11 @@ class Work_Project(QWidget):
                 }
 
 
-            with open(self.data_file, 'r+', encoding='utf-8') as file:
-                projects = json.load(file)
-                projects.append(new_project)
-                file.seek(0)
-                json.dump(projects, file, ensure_ascii=False, indent=4)
+                with open(self.data_file, 'r+', encoding='utf-8') as file:
+                    projects = json.load(file)
+                    projects.append(new_project)
+                    file.seek(0)
+                    json.dump(projects, file, ensure_ascii=False, indent=4)
 
             self.load_projects()
 
@@ -350,30 +452,30 @@ class Work_Project(QWidget):
                         latest_project is None or project['version'] > latest_project['version']):
                     latest_project = project
 
-
             if latest_project:
                 new_version = latest_project['version'] + 1
                 current_notes = latest_project['notes']
                 dialog = editnotesDialog(current_notes)
                 old_path = latest_project['path']
-                new_name = content_name+"_v"+str(new_version).zfill(3)+_format_[latest_project['dcc']]
-                shutil.copy(old_path,self.current_file+"/"+new_name)
+                new_name = content_name + "_v" + str(new_version).zfill(3) + _format_[latest_project['dcc']]
                 if dialog.exec_() == QDialog.Accepted:
+                    shutil.copy(old_path, self.current_file + "/" + new_name)
                     new_notes = dialog.notes_edit.toPlainText().strip()
-                new_project = {
-                    'content': content_name,
-                    'version': new_version,
-                    'user': Global_Vars.User,
-                    'dcc': latest_project['dcc'],
-                    'path': self.current_file+"/"+new_name,
-                    'notes': new_notes
-                }
-                projects.append(new_project)
-                file.seek(0)
-                json.dump(projects, file, ensure_ascii=False, indent=4)
+                    new_project = {
+                        'content': content_name,
+                        'version': new_version,
+                        'user': Global_Vars.User,
+                        'dcc': latest_project['dcc'],
+                        'path': self.current_file + "/" + new_name,
+                        'notes': new_notes
+                    }
+                    projects.append(new_project)
+                    file.seek(0)
+                    json.dump(projects, file, ensure_ascii=False, indent=4)
 
         self.load_projects()
 
+        self.load_projects()
 
     def edit_notes(self, item):
         project_data = item.data(Qt.UserRole)
@@ -402,31 +504,81 @@ class Work_Project(QWidget):
             self.load_projects()
         self.list_project.setCurrentIndex(index)
 
+    def update_list(self):
+        self.load_projects()
+        self.show_all_versions()
+        self.change_combo()
+
+    def on_header_clicked(self, logical_index):
+        # 获取当前排序顺序
+        current_order = self.proxy_model.sortOrder()
+        if current_order == Qt.AscendingOrder:
+            new_order = Qt.DescendingOrder
+        else:
+            new_order = Qt.AscendingOrder
+
+        # 设置新的排序顺序
+        self.proxy_model.sort(logical_index, new_order)
+
     def show_all_versions(self):
+        self.version_model.removeRows(0, self.version_model.rowCount())
         selected_item = self.list_project.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "警告", "请选择一个工程")
-            return
+        if selected_item:
+            item_text = selected_item.text()
+            content_name = item_text.split(' ')[0]
 
-        dialog = ProjectVersionDialog()
-        item_text = selected_item.text()
-        content_name = item_text.split(' ')[0]
+            self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
+            self.data_file = self.current_file + "/metadata/project.json"
+            with open(self.data_file, 'r', encoding='utf-8') as file:
+                projects = json.load(file)
 
+            self.version_model.removeRows(0,self.version_model.rowCount())
+            for project in projects:
+                if project["content"] == content_name:
+                    modify_time = os.path.getmtime(project["path"])
+                    mtime = datetime.fromtimestamp(int(modify_time))
+                    # item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']} 最后修改时间：{mtime}")
+                    row_count = self.version_model.rowCount()
+                    self.version_model.insertRow(row_count)
+                    item_version = QStandardItem(str(project['version']).zfill(3))
+                    item_modify = QStandardItem(str(mtime))
+                    item_des = QStandardItem(project["notes"])
+
+                    item_version.setData(project,Qt.ItemDataRole.UserRole)
+                    self.version_model.setItem(row_count, 0, item_version)
+                    self.version_model.setItem(row_count, 1, item_modify)
+                    self.version_model.setItem(row_count, 2, item_des)
+
+
+
+
+                # item.setData(Qt.ItemDataRole.UserRole, project)
+                # self.list_version.addItem(item)
+
+    def edit_version_note(self,row,colume,new_text):
+        item = self.version_model.item(row,0).data(Qt.UserRole)
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
         self.data_file = self.current_file + "/metadata/project.json"
-        with open(self.data_file, 'r', encoding='utf-8') as file:
+        with open(self.data_file, 'r+', encoding='utf-8') as file:
             projects = json.load(file)
+            updated_projects = []
 
-
-        dialog.addItem(projects,content_name)
-        dialog.list.doubleClicked.connect(self.edit_notes)
-        dialog.exec_()
-
+            for project in projects:
+                if project['path'] == item['path']:
+                    project['notes'] = new_text
+                updated_projects.append(project)
+                file.seek(0)
+                json.dump(updated_projects, file, ensure_ascii=False, indent=4)
+        # print(item)
+        #
+        #
+        # print(new_text)
     def get_describe(self,item):
         if item:
-            project = item.data(Qt.UserRole)
+            project = item.data(Qt.ItemDataRole.UserRole)
             describe = project['notes']
             self.des_lab.setText(describe)
+        self.show_all_versions()
 
     def copy_and_rename(self,old_name,path,newname):
         src = os.path.join(base_dir,"templates",old_name)
