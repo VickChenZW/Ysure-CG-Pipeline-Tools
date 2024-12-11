@@ -7,7 +7,7 @@ from PySide2.QtWidgets import (
     QVBoxLayout, QWidget, QTabWidget, QPushButton,
     QFileDialog, QLineEdit, QTextEdit, QListWidget,QListWidgetItem,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QMessageBox,
-    QStackedLayout,QComboBox, QMenuBar, QMenu,QToolBar,QAction
+    QStackedLayout,QComboBox, QMenuBar, QMenu,QToolBar,QAction, QStatusBar
 
 )
 from PySide2.QtCore import QSize, Qt
@@ -19,6 +19,7 @@ from Work_Project import Work_Project
 from Project_Manage import project_manager
 from file_exchange import File_Exchange
 import Global_Vars
+from Global_Vars import gv
 
 ## header with logo
 
@@ -45,11 +46,11 @@ class User_Choose(QDialog):
 
         self.setLayout(self.layout)
 class header(QWidget):
-    def __init__(self,work):
+    def __init__(self):
         super().__init__()
 
 
-        self.ci = work
+        # self.ci = work
 
         # add widgets
         logo = QLabel()
@@ -101,6 +102,11 @@ class header(QWidget):
         self.btn_user = QPushButton(Global_Vars.User)
         self.btn_user.pressed.connect(self.change_user)
 
+        about_lab = QLabel(about)
+        # about_lab.setAlignment(Qt.AlignRight)
+        about_lab.setEnabled(False)
+        about_lab.setStyleSheet("font-size:20px;}")
+
 
 
 
@@ -121,7 +127,7 @@ class header(QWidget):
         user_layout.addWidget(self.btn_user)
         user_layout.addWidget(self.user_text)
         user_layout.addStretch()
-
+        user_layout.addWidget(about_lab)
 
         info_layout = QVBoxLayout()
         # info_layout.setContentsMargins(30,30,0,0)
@@ -144,15 +150,17 @@ class header(QWidget):
         if str_path:
             self.file_path_text.setText(str_path)
             Global_Vars.Root = str_path
+            gv.root = str_path
 
     def change_user(self):
         dialog = User_Choose()
 
         if dialog.exec_() == QDialog.Accepted:
             Global_Vars.User = dialog.list_user.currentItem().text()
+            gv.user = dialog.list_user.currentItem().text()
             self.btn_user.setText(Global_Vars.User)
             # self.ci.change_user(Global_Vars.User)
-            self.ci.change_combo()
+            # self.ci.change_combo()
             self.user_text.setText("祝你工作快乐！ " + Global_Vars.User)
 
 
@@ -160,113 +168,15 @@ class header(QWidget):
         self.path_label.setText(text)
 
     def change_work(self):
-        self.ci.get_work_path(self.path_label.text())
-        self.ci.change_combo()
-        self.ci.load_projects()
+        # self.ci.get_work_path(self.path_label.text())
+        # self.ci.change_combo()
+        # self.ci.load_projects()
+        Global_Vars.Project = self.path_label.text()
+        gv.project = self.path_label.text()
 
     def root_change(self):
         self.path_label.clear()
         Global_Vars.Root = self.file_path_text.text()
-## Project List
-
-# class list_ltem_with_path(QListWidgetItem):
-#     def __init__(self,name,path,parent=None):
-#         super().__init__(name,parent)
-#         self.project_path =path
-#
-# class project_list(QListWidget):
-#     def __init__(self, parent=None):
-#         super().__init__(parent)
-#         self.itemDoubleClicked.connect(self.open_path)
-#
-#     def open_path(self, item):
-#         if isinstance(item,list_ltem_with_path):
-#             path = item.project_path
-#         if path:
-#             os.startfile(path)
-#
-# class project_manager(QWidget):
-#     def __init__(self,class_intance):
-#         super().__init__()
-#         self.wm = class_intance
-#
-#         # add widgets
-#         self.name_lab = QLineEdit("输入名字")
-#         self.en_name_lab = QLineEdit("输入英文名字")
-#         self.describe_lab = QTextEdit("输入描述")
-#         self.prj_list = project_list()
-#         btn_create_path = QPushButton("创建目录")
-#         btn_create_path.pressed.connect(self.create_new_project_file)
-#         btn_refresh = QPushButton("刷新列表")
-#         btn_refresh.pressed.connect(self.refresh)
-#
-#         btn_setproject = QPushButton("")
-#         btn_setproject.setIcon(QIcon(os.path.join(base_dir, "icon", "right.ico")))
-#         btn_setproject.pressed.connect(self.change_project)
-#         btn_edit_file = QPushButton("")
-#         btn_edit_file.setIcon(QIcon(os.path.join(base_dir, "icon", "edit_file.ico")))
-#
-#         # layout
-#         layout_create = QVBoxLayout()
-#         layout_list = QVBoxLayout()
-#         layout_main = QHBoxLayout()
-#         layout_set = QVBoxLayout()
-#
-#
-#         # add widget
-#         layout_create.addWidget(self.name_lab)
-#         layout_create.addWidget(self.en_name_lab)
-#         layout_create.addWidget(self.describe_lab)
-#         layout_create.addWidget(btn_create_path)
-#
-#         layout_list.addWidget(self.prj_list)
-#         layout_list.addWidget(btn_refresh)
-#
-#         layout_set.addWidget(btn_setproject)
-#         layout_set.addWidget(btn_edit_file)
-#         layout_set.addStretch()
-#
-#         layout_main.addLayout(layout_create)
-#         layout_main.addLayout(layout_list)
-#         layout_main.addLayout(layout_set)
-#
-#         self.List_update()
-#         # self.Table_update()
-#         self.setLayout(layout_main)
-#
-#
-#
-#     def create_new_project_file(self):
-#         name = self.name_lab.text()
-#         date = Function.get_date()
-#         en_name = self.en_name_lab.text()
-#         if is_chinese(en_name):
-#             error("英文名字不为英文！！")
-#         else:
-#             des = self.describe_lab.toPlainText()
-#             new_path = _Root_Path + "/" + date+"_"+en_name
-#             Function.create_path(new_path)
-#             Function.create_sub_folders(new_path)
-#             Function.create_project_info(name, en_name, des, new_path)
-#         self.List_update()
-#
-#     def List_update(self):
-#         self.prj_list.clear()
-#         infos = Function.get_Project_info(_Root_Path)
-#         for info in infos:
-#             item = list_ltem_with_path(info["name"]+"("+info["describe"]+")",info["path"],self.prj_list)
-#             self.prj_list.addItem(item)
-#     def refresh(self):
-#         self.List_update()
-#
-#     def change_project(self):
-#         global _Work_Path
-#         current_item = self.prj_list.currentItem()
-#         if isinstance(current_item,list_ltem_with_path):
-#             print(current_item.project_path)
-#             _Work_Path = current_item.project_path
-#             self.wm.project_change(current_item.project_path)
-
 
 ## Clipboard Funcction
 class Drag_Function(QLabel):
@@ -377,8 +287,7 @@ class MainWindow(QMainWindow):
         tabs = QTabWidget()
         tabs.setTabPosition(QTabWidget.North)
         wm = Work_Project()
-        head = header(wm)
-        # pro = project_manager(head, self)
+        head = header()
         tabs.addTab(project_manager(wm,head), "项目管理")
 
         tabs.addTab(wm, "工作文件管理")
@@ -393,10 +302,12 @@ class MainWindow(QMainWindow):
         about_lab.setAlignment(Qt.AlignRight)
 
         menu_bar = self.menuBar()
-        file_menu = menu_bar.addMenu("&File")
-        save_action = QAction("&Save",self)
-        save_action.triggered.connect(lambda: Function.ini(Global_Vars.Root, Global_Vars.Project,Global_Vars.User))
+        file_menu = menu_bar.addMenu("&文件")
+        save_action = QAction("&保存",self)
+        update_action = QAction("&更新",self)
+        save_action.triggered.connect(self.save)
         file_menu.addAction(save_action)
+        file_menu.addAction(update_action)
         # layout
 
         Main_Layout = QVBoxLayout()
@@ -404,7 +315,11 @@ class MainWindow(QMainWindow):
         # weight add
         Main_Layout.addWidget(head)
         Main_Layout.addWidget(tabs)
-        Main_Layout.addWidget(about_lab)
+        # Main_Layout.addWidget(about_lab)
+
+        self.statusBar = QStatusBar()
+        self.setStatusBar(self.statusBar)
+
 
         Main = QWidget()
         Main.setLayout(Main_Layout)
@@ -418,6 +333,12 @@ class MainWindow(QMainWindow):
             }
         """)
         self.setCentralWidget(Main)
+
+        gv.or_changed.connect(lambda value: self.statusBar.showMessage(value,3000))
+
+    def save(self):
+        Function.ini(Global_Vars.Root, Global_Vars.Project, Global_Vars.User)
+        self.statusBar.showMessage("保存成功", 3000)
 
 
 

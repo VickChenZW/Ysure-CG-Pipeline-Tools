@@ -1,6 +1,7 @@
 import pyperclip, os
 from datetime import datetime
 import json, configparser
+import re
 
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -174,8 +175,19 @@ def get_ini():
     user = config.get("Settings", "current_User")
     return root,project,user
 
-
-
+# def name_search(text):
+#     # name = text.split(".")[0:len(text.split("."))-1]
+#     # new_name = ""
+#     # for n in range(len(name)):
+#     #     new_name=n
+#     # # name = str(name)
+#     # # name = name.split("_v")[0:len(name.split("_v"))-1]
+#     # return str(name)
+#     pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
+#     match = re.match(pattern,text).group(1)
+#     return (match)
+# newtext = name_search("testv01.v003_v02_v005_v001.c4d")
+# print(newtext)
 
 
 

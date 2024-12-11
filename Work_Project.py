@@ -16,6 +16,7 @@ import Function
 from datetime import datetime
 
 import Global_Vars
+from Global_Vars import gv
 
 
 
@@ -67,7 +68,7 @@ class InputDialog(QDialog):
 
         self.label = QLabel(self.i)
         self.line_edit = QLineEdit()
-        self.ok_button = QPushButton("确定")
+        self.ok_button = QPushButton("创建文件夹")
         self.cancel_button = QPushButton("取消")
 
         self.ok_button.clicked.connect(self.accept_and_destroy)
@@ -145,26 +146,26 @@ class DraggableListWidget(QListWidget):
 
         drop_action = drag.exec_(supportedActions)
 
-class ProjectVersionDialog(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("version")
-        self.layout = QHBoxLayout()
-
-        self.list = DraggableListWidget()
-
-
-        self.layout.addWidget(self.list)
-
-        self.setLayout(self.layout)
-
-    def addItem(self,projects,content_name):
-        self.list.clear()
-        for project in projects:
-            if project["content"] == content_name:
-                item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']}")
-                item.setData(Qt.UserRole,project)
-                self.list.addItem(item)
+# class ProjectVersionDialog(QDialog):
+#     def __init__(self):
+#         super().__init__()
+#         self.setWindowTitle("version")
+#         self.layout = QHBoxLayout()
+#
+#         self.list = DraggableListWidget()
+#
+#
+#         self.layout.addWidget(self.list)
+#
+#         self.setLayout(self.layout)
+#
+#     def addItem(self,projects,content_name):
+#         self.list.clear()
+#         for project in projects:
+#             if project["content"] == content_name:
+#                 item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']}")
+#                 item.setData(Qt.UserRole,project)
+#                 self.list.addItem(item)
 class Version_Table(QStandardItemModel):
     dataChangedSignal = Signal(int,int,str)
     def __init__(self):
@@ -222,13 +223,17 @@ class Work_Project(QWidget):
         self.change_combo()
         self.project_combo.currentIndexChanged.connect(self.load_projects)
         self.project_combo.setStyleSheet("font-size:20px;}")
-        project_add = QPushButton("add")
-        project_add.pressed.connect(self.add_name_input)
 
-        btn_add_folder = QPushButton()
-        btn_add_folder.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
-        btn_add_folder.pressed.connect(self.add_path_list)
-        btn_add_folder.setToolTip("增加工程文件夹层级")
+
+        project_add = QPushButton()
+        project_add.pressed.connect(self.add_name_input)
+        project_add.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
+        project_add.setToolTip("增加工程文件夹层级")
+
+        # btn_add_folder = QPushButton()
+        # btn_add_folder.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
+        # btn_add_folder.pressed.connect(self.add_path_list)
+        # btn_add_folder.setToolTip("增加工程文件夹层级")
 
 
         self.list_project = DraggableListWidget()
@@ -254,7 +259,6 @@ class Work_Project(QWidget):
         header.setSortIndicatorShown(True)
         header.setSectionsClickable(True)
         header.sectionClicked.connect(self.on_header_clicked)
-        # self.version_model.sort(0)
 
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.list_project)
@@ -280,12 +284,6 @@ class Work_Project(QWidget):
         btn_update.setToolTip("版本升级")
         btn_update.pressed.connect(self.upgrade_selected_project)
 
-        # btn_list = QPushButton()
-        # btn_list.setIcon(QIcon(os.path.join(base_dir,"icon","version.ico")))
-        # btn_list.setMinimumSize(QSize(40,40))
-        # btn_list.setToolTip("查看所有版本")
-        # btn_list.pressed.connect(self.show_all_versions)
-
         btn_refresh = QPushButton()
         btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
         btn_refresh.setMinimumSize(QSize(40,40))
@@ -298,21 +296,16 @@ class Work_Project(QWidget):
         name_layout.addWidget(project_lab)
         name_layout.addWidget(self.project_combo)
         name_layout.addWidget(project_add)
-        name_layout.addWidget(btn_add_folder)
+        # name_layout.addWidget(btn_add_folder)
 
         layout_tools.addWidget(btn_new)
         layout_tools.addWidget(btn_open_project)
         layout_tools.addWidget(btn_update)
-        # layout_tools.addWidget(btn_list)
         layout_tools.addWidget(btn_refresh)
         layout_tools.addStretch()
 
-        # layout.addLayout(layout_btn)
         layout.addLayout(layout_tools)
-        # layout.addWidget(self.list_project)
-        # layout.addWidget(self.table_version)
         layout.addWidget(splitter)
-        # layout.addWidget(self.des_lab)
 
 
         main_layout.addLayout(name_layout)
@@ -324,29 +317,37 @@ class Work_Project(QWidget):
         self.get_work_path(Global_Vars.Project)
         self.load_projects()
 
+        gv.user_changed.connect(self.change_combo)
+        gv.project_changed.connect(self.change_project)
+
     def get_work_path(self, text):
         self.des_lab.setText(text)
         Global_Vars.Project = text
 
-    def add_path_list(self):
-        path = Global_Vars.Project
-        name = self.project_combo.currentText()
-        self.data_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User+"/" + self.project_combo.currentText() + "/metadata/project.json"
-        if path:
-            Function.create_work_Folder(path, Global_Vars.User, name, _list)
-        if not os.path.exists(self.data_file):
-            with open(self.data_file, 'w', encoding='utf-8') as file:
-                json.dump([], file, ensure_ascii=False, indent=4)
+
+    def change_project(self):
+        # self.get_work_path(self.path_label.text())
+        self.change_combo()
+        self.load_projects()
 
     def add_name_input(self):
-        di = InputDialog("add!", "name?")
-        if di.exec_():
+        di = InputDialog("增加项目文件夹", "请输入名字")
+        if di.exec_() == InputDialog.Accepted:
             value = di.get_input()
             self.project_combo.addItem(value)
-            if self.project_combo.count():
-                self.project_combo.setCurrentIndex(1+self.project_combo.currentIndex())
-            else:
-                self.project_combo.setCurrentIndex(0)
+            for i in range(self.project_combo.count()):
+                if self.project_combo.itemText(i) == value:
+                    self.project_combo.setCurrentIndex(i)
+
+
+            path = Global_Vars.Project
+            name = value
+            self.data_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + name + "/metadata/project.json"
+            if path:
+                Function.create_work_Folder(path, Global_Vars.User, name, _list)
+            if not os.path.exists(self.data_file):
+                with open(self.data_file, 'w', encoding='utf-8') as file:
+                    json.dump([], file, ensure_ascii=False, indent=4)
 
     def change_combo(self):
         self.project_combo.clear()
@@ -550,11 +551,6 @@ class Work_Project(QWidget):
                     self.version_model.setItem(row_count, 2, item_des)
 
 
-
-
-                # item.setData(Qt.ItemDataRole.UserRole, project)
-                # self.list_version.addItem(item)
-
     def edit_version_note(self,row,colume,new_text):
         item = self.version_model.item(row,0).data(Qt.UserRole)
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
@@ -569,10 +565,7 @@ class Work_Project(QWidget):
                 updated_projects.append(project)
                 file.seek(0)
                 json.dump(updated_projects, file, ensure_ascii=False, indent=4)
-        # print(item)
-        #
-        #
-        # print(new_text)
+
     def get_describe(self,item):
         if item:
             project = item.data(Qt.ItemDataRole.UserRole)

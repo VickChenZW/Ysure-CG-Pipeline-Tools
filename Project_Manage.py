@@ -1,17 +1,14 @@
 import json
 import os
-import sys
-from PySide2.QtWidgets import (
-    QMainWindow, QApplication,
-    QLabel,  QHBoxLayout,
-    QVBoxLayout, QWidget, QTabWidget, QPushButton,
-    QFileDialog, QLineEdit, QTextEdit, QListWidget,QListWidgetItem,
-    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QMessageBox,
-    QStackedLayout,QComboBox
-)
+from PySide2.QtWidgets import (QHBoxLayout,
+                            QVBoxLayout, QWidget,
+                            QPushButton, QLineEdit, QTextEdit, QListWidget,QListWidgetItem
+                            , QDialog, QMessageBox
+                            )
 from PySide2.QtCore import QSize, Qt
 from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon, QPixmap
 import Function, Global_Vars
+from Global_Vars import gv
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _user = ["Neo", "Vick", "YL", "Jie", "K", "O"]
@@ -53,8 +50,7 @@ class project_manager(QWidget):
         super().__init__()
         self.wm = class_intance
         self.header = header
-        # self.main_window = main_window
-        # self.root = _Root_Path
+
 
         # add widgets
         self.name_lab = QLineEdit("输入名字")
@@ -105,6 +101,8 @@ class project_manager(QWidget):
         # self.Table_update()
         self.setLayout(layout_main)
 
+        gv.root_changed.connect(self.List_update)
+
 
 
     def create_new_project_file(self):
@@ -131,13 +129,13 @@ class project_manager(QWidget):
         self.List_update()
 
     def change_project(self):
-        # global _Work_Path
         current_item = self.prj_list.currentItem()
         if isinstance(current_item,list_ltem_with_path):
             print(current_item.project_path)
             _Work_Path = current_item.project_path
             self.wm.load_projects()
             Global_Vars.Project = current_item.project_path
+            gv.project = current_item.project_path
             self.header.project_change(current_item.project_path)
 
     def opensub(self):
