@@ -15,9 +15,9 @@ from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon
 import Function
 import qdarktheme
 from Work_Project import Work_Project
-
 from Project_Manage import project_manager
 from file_exchange import File_Exchange
+from Render_List import render_list
 import Global_Vars
 from Global_Vars import gv
 
@@ -48,9 +48,6 @@ class User_Choose(QDialog):
 class header(QWidget):
     def __init__(self):
         super().__init__()
-
-
-        # self.ci = work
 
         # add widgets
         logo = QLabel()
@@ -108,13 +105,12 @@ class header(QWidget):
         about_lab.setStyleSheet("font-size:20px;}")
 
 
-
-
         path_layout = QHBoxLayout()
         path_layout.addWidget(tile1)
         path_layout.addWidget(self.file_path_text)
-        path_layout.addWidget(btn_open)
         path_layout.addWidget(btn_path)
+        path_layout.addWidget(btn_open)
+
 
         work_layout = QHBoxLayout()
         work_layout.addWidget(path_lab)
@@ -291,7 +287,8 @@ class MainWindow(QMainWindow):
         tabs.addTab(project_manager(wm,head), "项目管理")
 
         tabs.addTab(wm, "工作文件管理")
-        tabs.addTab(File_Exchange(),"文件交换管理")
+        tabs.addTab(File_Exchange(), "文件交换管理")
+        tabs.addTab(render_list(), "渲染文件管理")
         tabs.addTab(ClipBoard_Function(), "文件路径转换")
         fonts = tabs.font()
         fonts.setPointSize(13)
