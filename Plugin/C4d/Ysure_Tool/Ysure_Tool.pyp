@@ -63,12 +63,13 @@ def change_render_path():
     content_name = re.match(pattern,project_name).group(1)
     version = 1
     for i in list:
-        parts = i.split("_")[1:-2]
-        name_part = "_".join(parts)
-        print(name_part)
-        ver_part = int(i.split("_")[-1].split('v')[-1])
-        if name_part ==content_name and ver_part>=version:
-            version = ver_part+1
+        if not "metadata" in i:
+            parts = i.split("_")[1:-2]
+            name_part = "_".join(parts)
+            print(name_part)
+            ver_part = int(i.split("_")[-1].split('v')[-1])
+            if name_part ==content_name and ver_part>=version:
+                version = ver_part+1
     ver_str = str(version).zfill(3)
 
     render_date = doc.GetActiveRenderData()
@@ -182,38 +183,115 @@ def export(user,task,f,ani,cam):
     print (path)
 
 
-def localize_tex():
-    doc = c4d.documents.GetActiveDocument()
-    list = []
-    c4d.documents.GetAllAssetsNew(doc,False,"",c4d.ASSETDATA_FLAG_TEXTURESONLY,list)
-    root = doc.GetDocumentPath()
-    no_local = []
-    for i in list:
-        if os.path.dirname(i["filename"]) == os.path.join(root,"tex"):
-            pass
+class Local_Tex(object):
+
+    def __init__(self):
+        self.doc = c4d.documents.GetActiveDocument()
+        self.list = []
+        self.root = self.doc.GetDocumentPath()
+        self.no_local = []
+        self.renderData = self.doc.GetActiveRenderData()
+        self.rendertype = self.renderData[c4d.RDATA_RENDERENGINE]
+        self.fix_tex = []
+        self.existed_tex = []
+
+    def get_all_no_local_tex(self):
+        c4d.documents.GetAllAssetsNew(self.doc,False,"",c4d.ASSETDATA_FLAG_NODOCUMENT|c4d.ASSETDATA_FLAG_MULTIPLEUSE|c4d.ASSETDATA_FLAG_TEXTURESONLY,self.list)
+        for i in self.list:
+            # print(i)
+            if os.path.join(self.root, "tex") in os.path.dirname(i["filename"]):
+                pass
+            else:
+                self.no_local.append(i)
+                # print(i)
+
+    def copy_to_local(self):
+        for n in self.no_local:
+            source = n["filename"]
+            name = source.split("\\")[-1]
+            owner_name = n['owner'].GetName()
+            if n["owner"].GetType() == 5703 or n["owner"].GetType() == 1001101:
+                des = os.path.join(self.root,"tex",owner_name,name)
+                if not os.path.exists(os.path.join(self.root, "tex", owner_name)):
+                    os.makedirs(os.path.join(self.root, "tex", owner_name))
+            else:
+                des = os.path.join(self.root, "tex", name)
+
+            if not os.path.exists(des):
+                shutil.copy(source,des)
+            else:
+                self.existed_tex.append(name)
+
+    def rename_tex(self):
+        for i in self.no_local:
+            baseList2D = i["owner"]
+            owner_name = baseList2D.GetName()
+            name = i["filename"].split("\\")[-1]
+            new_name = f'{owner_name}/{name}'
+            print(baseList2D.GetType())
+            if baseList2D.GetType() == 1001101:  # RS texture GetType() != GetRealType()
+                baseList2D[c4d.REDSHIFT_SHADER_TEXTURESAMPLER_TEX0, c4d.REDSHIFT_FILE_PATH] = new_name
+            elif baseList2D.GetType() == 1036751:  # RS Light GetType() != GetRealType()
+
+                if baseList2D[c4d.REDSHIFT_LIGHT_TYPE] == 4:  # Dome
+                    baseList2D[c4d.REDSHIFT_LIGHT_DOME_TEX0, c4d.REDSHIFT_FILE_PATH] = name
+                elif baseList2D[c4d.REDSHIFT_LIGHT_TYPE] == 5:  # IES
+                    baseList2D[c4d.REDSHIFT_LIGHT_IES_PROFILE, c4d.REDSHIFT_FILE_PATH] = name
+                else:  # area/point
+                    baseList2D[c4d.REDSHIFT_LIGHT_PHYSICAL_TEXTURE, c4d.REDSHIFT_FILE_PATH] = name
+            elif baseList2D.GetType() == 5703:  # New_Node_System
+                nodespace = i["nodeSpace"]
+                nodepath = i['nodePath']
+                nodeMaterial:c4d.NodeMaterial = baseList2D.GetNodeMaterialReference()
+                graph:maxon.GraphModelInterface = nodeMaterial.GetGraph(nodespace)
+                with graph.BeginTransaction() as t:
+                    node = graph.GetNode(maxon.NodePath(nodepath))
+                    pathPort =node.GetInputs().FindChild("com.redshift3d.redshift4c4d.nodes.core.texturesampler.tex0").FindChild("path")
+                    pathPort.SetDefaultValue(new_name)
+                    t.Commit()
+            elif baseList2D().GetType() == 5833: ##
+                id = i['paramId']
+                baseList2D[id] = name
+            self.fix_tex.append(name)
+        c4d.gui.MessageDialog(f'一共{len(self.list)}个贴图\n共本地化{len(self.fix_tex)}个贴图!\n 处理的贴图已有{len(self.existed_tex)}贴图存在')
+
+    def run(self):
+        self.get_all_no_local_tex()
+        self.copy_to_local()
+        self.rename_tex()
+
+class Flipbook(object):
+    def __init__(self):
+        self.doc = c4d.documents.GetActiveDocument()
+        self.rd = self.doc.GetActiveRenderData().GetClone().GetData()
+        self.project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
+
+        self.project_name = self.doc.GetDocumentName()
+        self.content_name = re.match(pattern, self.project_name).group(1)
+        self.flipbook_path = os.path.join(self.project_path,"flipbook",self.content_name)
+
+    def create_sub_folder(self):
+        if not os.path.exists(self.flipbook_path):
+            os.makedirs(self.flipbook_path)
+    def renderFlipbook(self):
+        file = os.path.join(self.flipbook_path,os.path.splitext(self.project_name)[0]+"_"+datetime.now().strftime('%Y%m%d%H%M%S'))
+        # print(file)
+        self.rd.SetInt32(c4d.RDATA_FRAMESEQUENCE, c4d.RDATA_FRAMESEQUENCE_ALLFRAMES)
+        self.rd.SetLong(c4d.RDATA_RENDERENGINE, c4d.RDATA_RENDERENGINE_PREVIEWHARDWARE)
+        self.rd.SetBool(c4d.RDATA_TEXTURES, True)
+        self.rd.SetBool(c4d.RDATA_GLOBALSAVE, True)
+        self.rd.SetBool(c4d.RDATA_SAVEIMAGE, True)
+        self.rd.SetBool(c4d.RDATA_ALPHACHANNEL, False)
+        self.rd.SetInt32(c4d.RDATA_FORMATDEPTH, c4d.RDATA_FORMATDEPTH_8)
+        self.rd.SetInt32(c4d.RDATA_FORMAT, 1125)
+        self.rd.SetFilename(c4d.RDATA_PATH, file)
+        self.rd.SetInt32(c4d.RDATA_XRES, 1920)
+        self.rd.SetInt32(c4d.RDATA_YRES, 1080)
+        bmp = c4d.bitmaps.MultipassBitmap(int(self.rd[c4d.RDATA_XRES]), int(self.rd[c4d.RDATA_YRES]), c4d.COLORMODE_RGB)
+        if c4d.documents.RenderDocument(self.doc,self.rd, bmp ,c4d.RENDERFLAGS_PREVIEWRENDER|c4d.RENDERFLAGS_EXTERNAL) != c4d.RENDERRESULT_OK:
+            raise RuntimeError("Failed to render the temporary document.")
         else:
-            no_local.append(i)
-            print(i)
-    fix_name = []
-    for n in no_local:
-        source = n["filename"]
-        name = source.split("\\")[-1]
-        des = os.path.join(root,"tex",name)
-        shutil.copy(source,des)
-        shader: c4d.Material = n["owner"]
-        id = n.get("paramId", c4d.NOTOK)
-        nodespace = n["nodeSpace"]
-        nodepath = n['nodePath']
-        print(shader.GetNodeMaterialReference())
-        nodeMaterial:c4d.NodeMaterial = shader.GetNodeMaterialReference()
-        graph:maxon.GraphModelInterface = nodeMaterial.GetGraph(nodespace)
-        with graph.BeginTransaction() as t:
-            node = graph.GetNode(maxon.NodePath(nodepath))
-            pathPort =node.GetInputs().FindChild("com.redshift3d.redshift4c4d.nodes.core.texturesampler.tex0").FindChild("path")
-            pathPort.SetDefaultValue(name)
-            t.Commit()
-        fix_name.append(name)
-    c4d.gui.MessageDialog(f'{fix_name}本地化成功，共处理{len(fix_name)}个贴图！')
+            c4d.gui.MessageDialog(f"导出成功\n{file}")
 
 class GUI(c4d.gui.GeDialog):
     def __init__(self):
@@ -252,11 +330,12 @@ class GUI(c4d.gui.GeDialog):
                     self.AddButton(101,c4d.BFH_CENTER,0,0,"导出选择物体给他人")        
                 self.GroupEnd()
                 if self.GroupBegin(12,c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 2, 3, '渲染', 0, 0, 0):
+                    self.AddButton(104, c4d.BFH_CENTER, 0, 0, "拍屏")
                     self.AddButton(103,c4d.BFH_CENTER,0,0,"更改渲染保存路径")
+
                 self.GroupEnd()
             self.GroupEnd()
         self.GroupEnd()
-
 
 
     def Command(self, id, msg):
@@ -297,9 +376,15 @@ class GUI(c4d.gui.GeDialog):
             else:
                 c4d.gui.MessageDialog("none",0)
         if id == 102:
-            localize_tex()
+            lt = Local_Tex()
+            lt.run()
+
         if id == 103:
             change_render_path()
+
+        if id == 104:
+            fb = Flipbook()
+            fb.renderFlipbook()
 
         
         return True

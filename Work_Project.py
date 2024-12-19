@@ -25,7 +25,7 @@ from Global_Vars import gv
 _DCC_ = ["Blender", "C4d", "Houdini", "Maya"]
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _format_ = ({"Blender": ".blend", "C4d": ".c4d", "Houdini": ".hip", "Maya": ".ma"})
-_list =["__IN__", "tex", "geo", "abc", "vdb", "usd", "render", "flipbook", "metadata"]
+_list =["__IN__", "tex", "geo", "alembic", "vdb", "usd", "render", "flipbook", "metadata"]
 
 class CustomButton(QPushButton):
     def __init__(self, text, index):
@@ -59,7 +59,6 @@ class InputDialog(QDialog):
         self.t = title
         self.i = info
         self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
-
 
         self.setWindowTitle(self.t)
         self.setMinimumSize(QSize(300,200))
@@ -146,26 +145,45 @@ class DraggableListWidget(QListWidget):
 
         drop_action = drag.exec_(supportedActions)
 
-# class ProjectVersionDialog(QDialog):
-#     def __init__(self):
-#         super().__init__()
-#         self.setWindowTitle("version")
-#         self.layout = QHBoxLayout()
-#
-#         self.list = DraggableListWidget()
-#
-#
-#         self.layout.addWidget(self.list)
-#
-#         self.setLayout(self.layout)
-#
-#     def addItem(self,projects,content_name):
-#         self.list.clear()
-#         for project in projects:
-#             if project["content"] == content_name:
-#                 item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']}")
-#                 item.setData(Qt.UserRole,project)
-#                 self.list.addItem(item)
+class Flipbook_Dialog(QDialog):
+    def __init__(self,content):
+        super().__init__()
+        self.flip_path = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task + "/flipbook/"+content
+        self.content = content
+        self.setWindowTitle("拍屏文件")
+        self.layout = QVBoxLayout()
+        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+        self.content_label = QLabel(self.content)
+        self.list = DraggableListWidget()
+        self.list.doubleClicked.connect(self.open)
+        self.layout.addWidget(self.content_label)
+        self.layout.addWidget(self.list)
+        self.setLayout(self.layout)
+        self.add_item()
+    def add_item(self):
+        if os.path.exists(self.flip_path):
+            for i in os.listdir(self.flip_path):
+                filename = os.path.splitext(i)[0]
+                name = filename.split("_")[0]
+                time = filename.split("_")[-1]
+                path = os.path.join(self.flip_path,i)
+                item = QListWidgetItem(f'{name}创建日期{time}')
+                content = {
+                    "content": i,
+                    "path": path
+                }
+                item.setData(Qt.UserRole,content)
+                self.list.addItem(item)
+        else:
+            pass
+    def open(self,value):
+        data = value.data(Qt.UserRole)
+        path = data["path"]
+        os.startfile(path)
+
+
+
+
 class Version_Table(QStandardItemModel):
     dataChangedSignal = Signal(int,int,str)
     def __init__(self):
@@ -182,15 +200,12 @@ class Version_Table(QStandardItemModel):
         return ["text/uri-list"]
 
     def mimeData(self, indexes):
-
         mime_data = QMimeData()
-        # urls = ""
         item = self.item
         for index in indexes:
             if index.column() == 0:
                 project = self.data(index.siblingAtColumn(0),Qt.ItemDataRole.UserRole)
                 path = project["path"]
-                # urls = path
                 mime_data.setUrls([QUrl.fromLocalFile(path)])
         return mime_data
 
@@ -205,6 +220,7 @@ class Version_Table(QStandardItemModel):
                 self.dataChangedSignal.emit(index.row(),index.column(),value)
                 # 调用父类的 setData 方法以确保实际的数据更新
             return super().setData(index, value, role)
+
 class Work_Project(QWidget):
     def __init__(self):
         super().__init__()
@@ -230,14 +246,8 @@ class Work_Project(QWidget):
         project_add.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
         project_add.setToolTip("增加工程文件夹层级")
 
-        # btn_add_folder = QPushButton()
-        # btn_add_folder.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
-        # btn_add_folder.pressed.connect(self.add_path_list)
-        # btn_add_folder.setToolTip("增加工程文件夹层级")
-
-
         self.list_project = DraggableListWidget()
-        self.list_project.doubleClicked.connect(self.edit_notes)
+        self.list_project.doubleClicked.connect(self.get_filpbook)
         self.list_project.currentItemChanged.connect(self.get_describe)
         self.list_project.setStyleSheet("font-size:20px;}")
 
@@ -324,7 +334,6 @@ class Work_Project(QWidget):
         self.des_lab.setText(text)
         Global_Vars.Project = text
 
-
     def change_project(self):
         # self.get_work_path(self.path_label.text())
         self.change_combo()
@@ -356,7 +365,6 @@ class Work_Project(QWidget):
             projs = os.listdir(path)
             for proj in projs:
                 self.project_combo.addItem(proj)
-
 
     def load_projects(self):
         # self.change_combo()
@@ -390,7 +398,6 @@ class Work_Project(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, info['project'])
                 item.setIcon(QIcon(os.path.join(base_dir,"icon",info["dcc"])))
                 self.list_project.addItem(item)
-
 
     def create_new_project(self):
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
@@ -488,6 +495,8 @@ class Work_Project(QWidget):
         dialog = editnotesDialog(current_notes)
         if dialog.exec_() == QDialog.Accepted:
             new_notes = dialog.notes_edit.toPlainText().strip()
+            if new_notes is None:
+                new_notes = ""
 
             self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
             self.data_file = self.current_file + "/metadata/project.json"
@@ -500,6 +509,7 @@ class Work_Project(QWidget):
                         project['notes'] = new_notes
                     updated_projects.append(project)
                 file.seek(0)
+                file.truncate()
                 json.dump(updated_projects, file, ensure_ascii=False, indent=4)
 
             self.load_projects()
@@ -550,7 +560,6 @@ class Work_Project(QWidget):
                     self.version_model.setItem(row_count, 1, item_modify)
                     self.version_model.setItem(row_count, 2, item_des)
 
-
     def edit_version_note(self,row,colume,new_text):
         item = self.version_model.item(row,0).data(Qt.UserRole)
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
@@ -558,12 +567,14 @@ class Work_Project(QWidget):
         with open(self.data_file, 'r+', encoding='utf-8') as file:
             projects = json.load(file)
             updated_projects = []
-
+            if new_text is None:
+                new_text = ""
             for project in projects:
                 if project['path'] == item['path']:
                     project['notes'] = new_text
                 updated_projects.append(project)
                 file.seek(0)
+                file.truncate()
                 json.dump(updated_projects, file, ensure_ascii=False, indent=4)
 
     def get_describe(self,item):
@@ -577,6 +588,15 @@ class Work_Project(QWidget):
         src = os.path.join(base_dir,"templates",old_name)
         des = os.path.join(path,newname)
         shutil.copy(src,des)
+
+
+    def get_filpbook(self,value):
+        item = value
+        data = item.data(Qt.UserRole)
+        content = data["content"]
+        dialog = Flipbook_Dialog(content)
+        dialog.show()
+        dialog.exec_()
 
 
 
