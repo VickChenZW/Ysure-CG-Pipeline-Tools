@@ -77,10 +77,12 @@ def path_2_json(address, path):
          json.dump(dict_list, f)
     f.close()
 
+
 def getjson(path):
     with open(path, "r") as f:
         json_file = json.load(f)
     return json_file
+
 
 def json_2_path(address):
     name = []
@@ -90,8 +92,9 @@ def json_2_path(address):
         for list in path_dic_lists:
             name.append(list["name"])
             date.append(list["date"])
-    return name,date
-        # print(name,date)
+    return name, date
+
+
 
 def get_Project_info(path):
     infos = []
@@ -106,6 +109,7 @@ def get_Project_info(path):
                     infos.append(info)
     return infos
 
+
 def create_project_info(name, en_Name, des, path):
     info_dic = ({"name": name, "Date": get_date(), "en_Name": en_Name, "describe": des, "path": path})
     create_path(path + "/metadata")
@@ -113,31 +117,28 @@ def create_project_info(name, en_Name, des, path):
         json.dump(info_dic, f, ensure_ascii=False)
     f.close()
 
+
 def create_sub_folders(path):
-    subs = ["1.File","2.Project","3.Package","4.Output"]
-    # Dccs = ["AE","Blender","C4d","Houdini","Maya","MD","PR","UE"]
-    outs = ["Sequence","Video"]
-    assets = ["Documents","HDRI","Image","Model","PS+AI","Temp","Texture","Video"]
+    subs = ["1.File", "2.Project", "3.Comp", "4.Output"]
+    outs = ["Sequence", "Video"]
+    assets = ["Documents", "HDRI", "Image", "Model", "PS+AI", "Temp", "Texture", "Video"]
     for sub in subs:
         os.makedirs(path+"/"+sub)
-    # for Dcc in Dccs:
-    #     os.makedirs(path+"/2.Project/"+Dcc)
     for out in outs:
         os.makedirs(path+"/4.Output/"+out)
 
     for asset in assets:
         os.makedirs(path+"/1.File/"+asset)
 
-# _Root_Path = "E:/test_project_file"
-# json_2_path(_Root_Path + "/Folder.json")
 
-def create_work(path,user,name,format,version,describe):
-    filename = path + "/2.Project/" + user + "/" + name + "/" +version+ "." + format
+def create_work(path, user, name, format, version, describe):
+    filename = path + "/2.Project/" + user + "/" + name + "/" + version + "." + format
     with open(filename, "w") as f:
         pass
     f.close()
 
-def create_work_Folder(path,user,name,list):
+
+def create_work_Folder(path, user, name, list):
     project_path = path+"/2.Project/"+user
     if not os.path.exists(project_path):
         os.makedirs(project_path)
@@ -148,7 +149,8 @@ def create_work_Folder(path,user,name,list):
         if not os.path.exists(project_path + "/" +l):
             os.makedirs(project_path + "/" +l)
 
-def ini(root,project,user):
+
+def ini(root, project, user):
     config = configparser.ConfigParser()
 
     config["Settings"] = {
@@ -164,6 +166,7 @@ def ini(root,project,user):
         config.write(f)
     f.close()
 
+
 def get_ini():
     config = configparser.ConfigParser()
     path = os.path.join(base_dir, "config", "config.ini")
@@ -173,21 +176,7 @@ def get_ini():
     root = config.get("Settings", "current_Root")
     project = config.get("Settings", "current_Project")
     user = config.get("Settings", "current_User")
-    return root,project,user
-
-# def name_search(text):
-#     # name = text.split(".")[0:len(text.split("."))-1]
-#     # new_name = ""
-#     # for n in range(len(name)):
-#     #     new_name=n
-#     # # name = str(name)
-#     # # name = name.split("_v")[0:len(name.split("_v"))-1]
-#     # return str(name)
-#     pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
-#     match = re.match(pattern,text).group(1)
-#     return (match)
-# newtext = name_search("testv01.v003_v02_v005_v001.c4d")
-# print(newtext)
+    return root, project, user
 
 
 

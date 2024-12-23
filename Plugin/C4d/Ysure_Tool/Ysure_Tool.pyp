@@ -79,7 +79,7 @@ def change_render_path():
     c4d.gui.MessageDialog("设置完成，请自行更改文件输出名字")
     
 
-def export(user,task,f,ani,cam):
+def export(user,task,f,ani,cam,tex):
 
     dic = {
     'file_name': "",
@@ -100,9 +100,9 @@ def export(user,task,f,ani,cam):
     # if user is not None and task is not None and f is not None:
     project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
     print(os.path.dirname(os.path.dirname(project_path)))
-    current_name = c4d.documents.GetActiveDocument().GetActiveObject().GetName()
-    name = c4d.gui.InputDialog("输入名字",current_name)
-    des = c4d.gui.InputDialog("输入备注",current_name)
+    # current_name = c4d.documents.GetActiveDocument().GetActiveObject().GetName()
+    name = c4d.gui.InputDialog("输入名字")
+    des = c4d.gui.InputDialog("输入备注")
     in_path = os.path.join(os.path.dirname(os.path.dirname(project_path)),user,task,"__IN__")
     path = os.path.join(in_path,name+format[f])
 
@@ -118,19 +118,18 @@ def export(user,task,f,ani,cam):
 
     # BaseList2D object stored in "imexporter" key hold the settings
     
-    
-    
-    
+
     Export = data.get("imexporter", None)
     if Export is None:
         raise RuntimeError("Failed to retrieves BaseContainer private data.")
     #FBX
     if f==1:
         Export[c4d.FBXEXPORT_ASCII] = True
-        Export[c4d.FBXEXPORT_CAMERAS] = True
+        # Export[c4d.FBXEXPORT_CAMERAS] = True
         Export[c4d.FBXEXPORT_SELECTION_ONLY] = True
         Export[c4d.FBXEXPORT_CAMERAS] = cam
         Export[c4d.FBXEXPORT_GRP_ANIMATION] = ani
+        Export[c4d.FBXEXPORT_MATERIALS] = tex
 
     if f==2:
 
@@ -148,38 +147,36 @@ def export(user,task,f,ani,cam):
 
     if not c4d.documents.SaveDocument(doc, path, c4d.SAVEDOCUMENTFLAGS_EXPORTDIALOG|c4d.SAVEDOCUMENTFLAGS_DONTADDTORECENTLIST, id[f]):
         raise RuntimeError("Failed to save the document.")
+
+    else:
     
 
-    dic = {
-    'file_name': f'{name}{format[f]}',
-    'date': str(datetime.now()),
-    'from': os.path.dirname(project_path).split("\\")[-1],
-    'to': user,
-    'make': (project_path+c4d.documents.GetActiveDocument().GetDocumentName()).replace("\\","/"),
-    'describe':des, 
-}
-    
-    
-    
-    if not os.path.exists(os.path.join(in_path,"metadata")):
-        os.makedirs(os.path.join(in_path,"metadata"))
-    
-    if not os.path.exists(os.path.join(in_path,"metadata","in.json")):
-        with open(os.path.join(in_path,"metadata","in.json"),"w",encoding='utf-8') as f:
-            json.dump([],f,ensure_ascii=False,indent=4)
-
-    with open(os.path.join(in_path,"metadata","in.json"),"r+",encoding='utf-8') as f:
-        project = json.load(f)
-        project.append(dic)
-        f.seek(0)
-        json.dump(project,f,ensure_ascii=False,indent=4)
-    f.close()
+        dic = {
+        'file_name': f'{name}{format[f]}',
+        'date': str(datetime.now()),
+        'from': os.path.dirname(project_path).split("\\")[-1],
+        'to': user,
+        'make': (project_path+c4d.documents.GetActiveDocument().GetDocumentName()).replace("\\","/"),
+        'describe':des,
+    }
 
 
 
+        if not os.path.exists(os.path.join(in_path,"metadata")):
+            os.makedirs(os.path.join(in_path,"metadata"))
 
-        
-        
+        if not os.path.exists(os.path.join(in_path,"metadata","in.json")):
+            with open(os.path.join(in_path,"metadata","in.json"),"w",encoding='utf-8') as f:
+                json.dump([],f,ensure_ascii=False,indent=4)
+
+        with open(os.path.join(in_path,"metadata","in.json"),"r+",encoding='utf-8') as f:
+            project = json.load(f)
+            project.append(dic)
+            f.seek(0)
+            json.dump(project,f,ensure_ascii=False,indent=4)
+        f.close()
+
+
     print (path)
 
 
@@ -276,6 +273,7 @@ class Flipbook(object):
     def renderFlipbook(self):
         file = os.path.join(self.flipbook_path,os.path.splitext(self.project_name)[0]+"_"+datetime.now().strftime('%Y%m%d%H%M%S'))
         # print(file)
+        x = c4d.gui.InputDialog("输入分辨率","1920")
         self.rd.SetInt32(c4d.RDATA_FRAMESEQUENCE, c4d.RDATA_FRAMESEQUENCE_ALLFRAMES)
         self.rd.SetLong(c4d.RDATA_RENDERENGINE, c4d.RDATA_RENDERENGINE_PREVIEWHARDWARE)
         self.rd.SetBool(c4d.RDATA_TEXTURES, True)
@@ -285,8 +283,9 @@ class Flipbook(object):
         self.rd.SetInt32(c4d.RDATA_FORMATDEPTH, c4d.RDATA_FORMATDEPTH_8)
         self.rd.SetInt32(c4d.RDATA_FORMAT, 1125)
         self.rd.SetFilename(c4d.RDATA_PATH, file)
-        self.rd.SetInt32(c4d.RDATA_XRES, 1920)
-        self.rd.SetInt32(c4d.RDATA_YRES, 1080)
+        self.rd.SetInt32(c4d.RDATA_XRES, int(x))
+        y = int(x)/self.rd.GetReal(c4d.RDATA_FILMASPECT)
+        self.rd.SetInt32(c4d.RDATA_YRES, int(y))
         bmp = c4d.bitmaps.MultipassBitmap(int(self.rd[c4d.RDATA_XRES]), int(self.rd[c4d.RDATA_YRES]), c4d.COLORMODE_RGB)
         if c4d.documents.RenderDocument(self.doc,self.rd, bmp ,c4d.RENDERFLAGS_PREVIEWRENDER|c4d.RENDERFLAGS_EXTERNAL) != c4d.RENDERRESULT_OK:
             raise RuntimeError("Failed to render the temporary document.")
@@ -327,6 +326,7 @@ class GUI(c4d.gui.GeDialog):
                     self.AddComboBox(1002,c4d.BFH_CENTER,80,10,False,False)
                     self.AddCheckbox(2000,c4d.BFH_LEFT,0,0,"动画")
                     self.AddCheckbox(2001,c4d.BFH_LEFT,0,0,"摄影机")
+                    self.AddCheckbox(2002, c4d.BFH_LEFT, 0, 0, "贴图")
                     self.AddButton(101,c4d.BFH_CENTER,0,0,"导出选择物体给他人")        
                 self.GroupEnd()
                 if self.GroupBegin(12,c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 2, 3, '渲染', 0, 0, 0):
@@ -369,10 +369,11 @@ class GUI(c4d.gui.GeDialog):
             # format = _format[f-20001]
             ani = self.GetBool(2000)
             cam = self.GetBool(2001)
+            tex = self.GetBool(2002)
             # print(f'{user} {format} ')
             print(tasks)
             if all((user,tasks[t],f)):
-                export(user,tasks[t],f,ani,cam)
+                export(user,tasks[t],f,ani,cam,tex)
             else:
                 c4d.gui.MessageDialog("none",0)
         if id == 102:

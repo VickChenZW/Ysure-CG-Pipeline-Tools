@@ -84,7 +84,7 @@ class header(QWidget):
         self.path_label.setEnabled(False)
         btn_open_file = QPushButton()
         btn_open_file.setIcon(QIcon(os.path.join(base_dir, "icon", "opened_folder.ico")))
-        btn_open_file.pressed.connect(lambda: os.startfile(self.path_label.text() + "/2.Project/"))
+        btn_open_file.pressed.connect(lambda: os.startfile(self.path_label.text()))
 
         user_label = QLabel()
         user_label.setPixmap(QPixmap(os.path.join(base_dir,"icon","person.ico")))

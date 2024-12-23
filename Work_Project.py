@@ -9,8 +9,6 @@ from PySide2.QtWidgets import (
 from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint, QSortFilterProxyModel, Signal
 from PySide2.QtGui import QFont, QIcon, QDrag, QStandardItemModel, QStandardItem
 
-# from diglog import InputDialog
-
 import Function
 
 from datetime import datetime
@@ -18,19 +16,12 @@ from datetime import datetime
 import Global_Vars
 from Global_Vars import gv
 
-
-
-
 # 本地变量
 _DCC_ = ["Blender", "C4d", "Houdini", "Maya"]
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _format_ = ({"Blender": ".blend", "C4d": ".c4d", "Houdini": ".hip", "Maya": ".ma"})
 _list =["__IN__", "tex", "geo", "alembic", "vdb", "usd", "render", "flipbook", "metadata"]
 
-class CustomButton(QPushButton):
-    def __init__(self, text, index):
-        super().__init__(text)
-        self.index = index
 
 class editnotesDialog(QDialog):
     def __init__(self, initial_notes):
@@ -122,6 +113,7 @@ class ProjectDialog(QDialog):
         self.layout.addWidget(button_box)
 
         self.setLayout(self.layout)
+
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -180,9 +172,6 @@ class Flipbook_Dialog(QDialog):
         data = value.data(Qt.UserRole)
         path = data["path"]
         os.startfile(path)
-
-
-
 
 class Version_Table(QStandardItemModel):
     dataChangedSignal = Signal(int,int,str)
@@ -483,7 +472,6 @@ class Work_Project(QWidget):
 
         self.load_projects()
 
-        self.load_projects()
 
     def edit_notes(self, item):
         project_data = item.data(Qt.UserRole)
