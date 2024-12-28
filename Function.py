@@ -11,7 +11,8 @@ def get_from_clipboard():
     return pyperclip.paste()
 
 def mac_2_win(address):
-    if "smb" in address:
+    if "smb" in address or "Volumes" in address:
+        # print(address)
         backadd = address.split("YsureSuperHub")
         newpath = "Y:"+backadd[1]
         pyperclip.copy(newpath)

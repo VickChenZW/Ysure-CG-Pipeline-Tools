@@ -127,7 +127,7 @@ class render_list(QWidget):
                 infos = json.load(f)
                 list = os.listdir(render_path)
                 for i in list:
-                    if not "metadata" in i:
+                    if  "metadata" not in i and ".DS_Store" not in i:
                         existing = any(i == info['content'] for info in infos)
                         date = i.split("_")[0]
                         version = i.split("_")[-1]
@@ -188,7 +188,7 @@ class render_list(QWidget):
                     self.list_AOV.addItem(item)
                 else:
                     count += 1
-                self.label_count.setText(str(count))
+                self.label_count.setText(f'帧数:{str(count)}')
 
     def change_note(self):
         print("finish")

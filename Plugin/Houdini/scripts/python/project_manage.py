@@ -30,8 +30,8 @@ class project_manage(QWidget):
                     'content_name' : '',
                     'current_version' : ''
                     }
-
         self.change_var()
+
 
         path_label = QLabel("工程名称")
         self.path_combo = QComboBox()
@@ -47,7 +47,7 @@ class project_manage(QWidget):
         path_refresh = QPushButton()
         path_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
         path_refresh.setToolTip("刷新")
-        path_refresh.pressed.connect(self.debug)
+        path_refresh.pressed.connect(self.change_combo)
 
 
         new_button = QPushButton()
@@ -102,7 +102,7 @@ class project_manage(QWidget):
 
         self.setLayout(self.layout)
 
-        self.change_combo()
+        # self.change_combo()
 
 
 
@@ -110,16 +110,17 @@ class project_manage(QWidget):
     def change_var(self):
         path = hou.hipFile.path()
         name = hou.hipFile.basename()
-        content_name = re.match(pattern_name,name).group(1)
-        version = int(re.findall(pattern_version,name)[-1])
-        data_path = os.path.join(os.path.dirname(path),'metadata','project.json')
-        self.var_content={
-            'project_name': name,
-            'project_path': path,
-            'data_path': data_path,
-            'content_name': content_name,
-            'current_version': version
-        }
+        if re.match(pattern_name, name):
+            content_name = re.match(pattern_name,name).group(1)
+            version = int(re.findall(pattern_version,name)[-1])
+            data_path = os.path.join(os.path.dirname(path),'metadata','project.json')
+            self.var_content={
+                'project_name': name,
+                'project_path': path,
+                'data_path': data_path,
+                'content_name': content_name,
+                'current_version': version
+            }
         return self.var_content
 
     def load_projects(self):
@@ -221,11 +222,12 @@ class project_manage(QWidget):
         self.load_projects()
 
     def change_combo(self):
+        self.path_combo.clear()
+        self.change_var()
         data_file = self.var_content['data_path']
         if os.path.exists(data_file):
             with open(data_file, 'r', encoding='utf-8') as file:
                 projects = json.load(file)
-
                 unique_contents = set(item['content'] for item in projects if 'content' in item and item.get('dcc') == 'Houdini')
                 for content in unique_contents:
                     self.path_combo.addItem(content)

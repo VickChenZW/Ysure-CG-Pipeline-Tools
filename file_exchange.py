@@ -42,17 +42,11 @@ class DraggableListWidget(QListWidget):
 
         drop_action = drag.exec_(supportedActions)
 
-
-
 class File_Exchange(QWidget):
     def __init__(self):
         super().__init__()
         self.list_In = DraggableListWidget()
         self.list_In.currentItemChanged.connect(self.changetext)
-
-
-
-
 
         btn_refresh = QPushButton()
         btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
@@ -93,17 +87,28 @@ class File_Exchange(QWidget):
         path = f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}/__IN__/'
         # print(path)
         self.list_In.clear()
+        new_info = []
+        existed = []
+        for i in os.listdir(path):
+            if not os.path.isdir(os.path.join(path,i)):
+                existed.append(i)
         if os.path.exists(os.path.join(path,"metadata","in.json")):
-            with open(os.path.join(path,"metadata","in.json"), "r", encoding='utf-8') as f:
+            with open(os.path.join(path,"metadata","in.json"), "r+", encoding='utf-8') as f:
                 files = json.load(f)
-
                 for file in files:
                     if file:
-                        item = QListWidgetItem(file['file_name'])
-                        file.update({"path": path+file["file_name"]})
-                        item.setData(Qt.UserRole, file)
-                        # print(path + file["file_name"])
-                        self.list_In.addItem(item)
+                        if file['file_name'] in existed:
+                            item = QListWidgetItem(file['file_name'])
+                            file.update({"path": path+file["file_name"]})
+                            item.setData(Qt.UserRole, file)
+                            # print(path + file["file_name"])
+                            self.list_In.addItem(item)
+                            new_info.append(file)
+                f.seek(0)
+                f.truncate()
+                json.dump(new_info,f,ensure_ascii=False, indent=4)
+            f.close()
+
         else:
             os.makedirs(os.path.join(path,"metadata"))
             with open(os.path.join(path,"metadata","in.json"),"w",encoding='utf-8') as f:
@@ -115,6 +120,13 @@ class File_Exchange(QWidget):
         self.from_tex.setText(f'发送自：{file["from"]}')
         self.make_tex.setText(f'{os.path.dirname(file["make"]).split("/")[-1]}中的{file["make"].split("/")[-1]}')
         self.des_lab.setText(file["describe"])
+
+    # def update(self):
+    #     path = f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}/__IN__/'
+    #     for i in os.listdir(path):
+    #         if not "metadata" in i:
+
+
 
 
 

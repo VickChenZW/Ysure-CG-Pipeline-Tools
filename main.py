@@ -11,7 +11,7 @@ from PySide2.QtWidgets import (
 
 )
 from PySide2.QtCore import QSize, Qt
-from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon, QPixmap
+from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon, QPixmap, QDragEnterEvent
 import Function
 import qdarktheme
 from Work_Project import Work_Project
@@ -183,26 +183,30 @@ class Drag_Function(QLabel):
         self.setStyleSheet('''background : rgba(200,200,200,0.1);
                                                    color : #747474;''')
 
-    def dragEnterEvent(self, event:QEnterEvent) -> None:
+
+    def dragEnterEvent(self, event:QDragEnterEvent) -> None:
         if event.mimeData().hasText():
             event.acceptProposedAction()
             text = event.mimeData().text()
-            if "smb" in text:
+            if "smb" in text or "Volumes" in  text:
                 self.setStyleSheet('''background : rgba(10,200,10,0.5)''')
                 self.setText("松开打开文件目录")
+                self.setCursor(Qt.ClosedHandCursor)
             else:
                 self.setStyleSheet('''background : rgba(10,200,80,0.5)''')
                 self.setText("松开拷贝Mac文件目录")
+
 
     def dragLeaveEvent(self, event:QDragLeaveEvent) -> None:
         self.setStyleSheet('''background : rgba(200,200,200,0.1);
                                                    color : #747474;''')
         self.setText("拖动到此处")
+        self.setCursor(Qt.OpenHandCursor)
 
     def dropEvent(self, event:QDropEvent) -> None:
         if event.mimeData().hasText():
             text = event.mimeData().text()
-            if "smb" in text:
+            if "smb" in text or "Volumes" in  text:
                 Function.mac_2_win(text)
             else:
                 Function.win_2_mac(text)

@@ -1,4 +1,4 @@
-import os, json,shutil
+import os, json,shutil, ctypes
 from PySide2.QtWidgets import (
     QLabel, QTabWidget, QWidget, QPushButton,
     QHBoxLayout, QVBoxLayout, QStackedLayout, QLineEdit, QListWidget,
@@ -20,7 +20,7 @@ from Global_Vars import gv
 _DCC_ = ["Blender", "C4d", "Houdini", "Maya"]
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _format_ = ({"Blender": ".blend", "C4d": ".c4d", "Houdini": ".hip", "Maya": ".ma"})
-_list =["__IN__", "tex", "geo", "alembic", "vdb", "usd", "render", "flipbook", "metadata"]
+_list =["__IN__", "tex", "geo", "alembic", "vdb", "usd", "render", "flipbook", "metadata", "reference"]
 
 
 class editnotesDialog(QDialog):
@@ -136,6 +136,39 @@ class DraggableListWidget(QListWidget):
         drag.setHotSpot(QPoint(25, 25))
 
         drop_action = drag.exec_(supportedActions)
+
+class Opensub(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("打开资产文件夹")
+        self.layout = QVBoxLayout()
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo','ABC': 'alembic', 'VDB': 'vdb'}
+        self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task
+        self.tab = QTabWidget()
+        self.add_ltem()
+
+        self.layout.addWidget(self.tab)
+        self.setLayout(self.layout)
+
+    def add_ltem(self):
+        for key in self.assets:
+            widget = QWidget()
+            layout = QVBoxLayout(widget)
+            list = QListWidget()
+            btn_open = QPushButton("打开文件夹")
+            btn_open.pressed.connect(lambda x=self.assets[key]:os.startfile(os.path.join(self.current_file,x)))
+            layout.addWidget(list)
+            layout.addWidget(btn_open)
+            self.tab.addTab(widget, key)
+            path = os.path.join(self.current_file,self.assets[key])
+            for i in os.listdir(path):
+                att = ctypes.windll.kernel32.GetFileAttributesW(os.path.join(path,i))
+                if  att != -1 and bool(att & 2):  ##判断是不是隐藏文件
+                    pass
+                else:
+                    list.addItem(i)
+
 
 class Flipbook_Dialog(QDialog):
     def __init__(self,content):
@@ -274,20 +307,27 @@ class Work_Project(QWidget):
         btn_open_project = QPushButton()
         btn_open_project.setIcon(QIcon(os.path.join(base_dir,"icon","open.ico")))
         btn_open_project.setToolTip("打开文件")
-        btn_open_project.setMinimumSize(QSize(40,40))
+        btn_open_project.setMinimumSize(QSize(40, 40))
         btn_open_project.pressed.connect(lambda: os.startfile(f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}'))
 
         btn_update = QPushButton()
         btn_update.setIcon(QIcon(os.path.join(base_dir,"icon","updata.ico")))
-        btn_update.setMinimumSize(QSize(40,40))
+        btn_update.setMinimumSize(QSize(40, 40))
         btn_update.setToolTip("版本升级")
         btn_update.pressed.connect(self.upgrade_selected_project)
 
         btn_refresh = QPushButton()
         btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
-        btn_refresh.setMinimumSize(QSize(40,40))
+        btn_refresh.setMinimumSize(QSize(40, 40))
         btn_refresh.setToolTip("刷新")
         btn_refresh.pressed.connect(self.update_list)
+
+        btn_subfolder = QPushButton()
+        btn_subfolder.setIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        btn_subfolder.setMinimumSize(QSize(40, 40))
+        btn_subfolder.setToolTip("打开子文件夹")
+        btn_subfolder.pressed.connect(self.opensub)
+
 
         self.des_lab = QLabel("describe")
         self.des_lab.setMinimumWidth(150)
@@ -301,6 +341,7 @@ class Work_Project(QWidget):
         layout_tools.addWidget(btn_open_project)
         layout_tools.addWidget(btn_update)
         layout_tools.addWidget(btn_refresh)
+        layout_tools.addWidget(btn_subfolder)
         layout_tools.addStretch()
 
         layout.addLayout(layout_tools)
@@ -472,7 +513,6 @@ class Work_Project(QWidget):
 
         self.load_projects()
 
-
     def edit_notes(self, item):
         project_data = item.data(Qt.UserRole)
         index = self.list_project.currentIndex()
@@ -577,7 +617,6 @@ class Work_Project(QWidget):
         des = os.path.join(path,newname)
         shutil.copy(src,des)
 
-
     def get_filpbook(self,value):
         item = value
         data = item.data(Qt.UserRole)
@@ -585,6 +624,11 @@ class Work_Project(QWidget):
         dialog = Flipbook_Dialog(content)
         dialog.show()
         dialog.exec_()
+
+    def opensub(self):
+        sub_window = Opensub()
+        sub_window.exec_()
+
 
 
 

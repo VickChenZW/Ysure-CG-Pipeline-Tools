@@ -1,6 +1,4 @@
 import os, Function
-# from dataclasses import dataclass, field
-# import weakref
 from PySide2.QtCore import QObject, Signal
 Root, Project, User = Function.get_ini()
 

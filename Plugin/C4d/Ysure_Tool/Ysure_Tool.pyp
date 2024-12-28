@@ -78,8 +78,7 @@ def change_render_path():
     # print(render_date[c4d.RDATA_PATH])
     c4d.gui.MessageDialog("设置完成，请自行更改文件输出名字")
     
-
-def export(user,task,f,ani,cam,tex):
+def export(user,task,f,ani,cam,mat,tex):
 
     dic = {
     'file_name': "",
@@ -125,11 +124,10 @@ def export(user,task,f,ani,cam,tex):
     #FBX
     if f==1:
         Export[c4d.FBXEXPORT_ASCII] = True
-        # Export[c4d.FBXEXPORT_CAMERAS] = True
         Export[c4d.FBXEXPORT_SELECTION_ONLY] = True
         Export[c4d.FBXEXPORT_CAMERAS] = cam
         Export[c4d.FBXEXPORT_GRP_ANIMATION] = ani
-        Export[c4d.FBXEXPORT_MATERIALS] = tex
+        Export[c4d.FBXEXPORT_MATERIALS] = mat
 
     if f==2:
 
@@ -150,6 +148,10 @@ def export(user,task,f,ani,cam,tex):
 
     else:
     
+        if tex:
+            export_tex = Local_Tex()
+            export_tex.get_select_tex()
+            export_tex.copy_to_uesr(user,task)
 
         dic = {
         'file_name': f'{name}{format[f]}',
@@ -191,6 +193,7 @@ class Local_Tex(object):
         self.rendertype = self.renderData[c4d.RDATA_RENDERENGINE]
         self.fix_tex = []
         self.existed_tex = []
+        self.selected_tex = []
 
     def get_all_no_local_tex(self):
         c4d.documents.GetAllAssetsNew(self.doc,False,"",c4d.ASSETDATA_FLAG_NODOCUMENT|c4d.ASSETDATA_FLAG_MULTIPLEUSE|c4d.ASSETDATA_FLAG_TEXTURESONLY,self.list)
@@ -202,6 +205,26 @@ class Local_Tex(object):
                 self.no_local.append(i)
                 # print(i)
 
+
+    def get_select_tex(self):
+        self.get_all_no_local_tex()
+        select = c4d.documents.GetActiveDocument().GetActiveObjects(c4d.GETACTIVEOBJECTFLAGS_CHILDREN)
+        for s in select:
+            # print(s)
+            object:c4d.BaseObject = s
+            tags = object.GetTags()
+            # print(tags)
+            for n in self.list:
+                if n['owner'] == s:
+                    self.selected_tex.append(n)
+            for t in tags:
+                if t.GetType() == 5616:      ##材质标签
+                    textag:c4d.TextureTag = t
+                    owner = textag.GetMaterial()
+                    for n in self.list:
+                        if n['owner'] == owner:
+                            self.selected_tex.append(n)
+            # print(self.selected_tex)
     def copy_to_local(self):
         for n in self.no_local:
             source = n["filename"]
@@ -214,6 +237,23 @@ class Local_Tex(object):
             else:
                 des = os.path.join(self.root, "tex", name)
 
+            if not os.path.exists(des):
+                shutil.copy(source,des)
+            else:
+                self.existed_tex.append(name)
+
+    def copy_to_uesr(self,user,task):
+        project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
+        for n in self.selected_tex:
+            source = n["filename"]
+            name = source.split("\\")[-1]
+            owner_name = n['owner'].GetName()
+
+            tex_path = os.path.join(os.path.dirname(os.path.dirname(project_path)), user, task, "tex")
+            des = os.path.join(tex_path,owner_name,name)
+            # des = os.path.join(self.root,"tex",owner_name,name)
+            if not os.path.exists(os.path.join(self.root,"tex",owner_name)):
+                os.makedirs(os.path.join(self.root,"tex",owner_name))
             if not os.path.exists(des):
                 shutil.copy(source,des)
             else:
@@ -271,15 +311,16 @@ class Flipbook(object):
         if not os.path.exists(self.flipbook_path):
             os.makedirs(self.flipbook_path)
     def renderFlipbook(self):
-        file = os.path.join(self.flipbook_path,os.path.splitext(self.project_name)[0]+"_"+datetime.now().strftime('%Y%m%d%H%M%S'))
+        file = os.path.join(self.flipbook_path,os.path.splitext(self.project_name)[0]+"_"+datetime.now().strftime('%Y-%m-%d %H-%M-%S'))
         # print(file)
         x = c4d.gui.InputDialog("输入分辨率","1920")
         self.rd.SetInt32(c4d.RDATA_FRAMESEQUENCE, c4d.RDATA_FRAMESEQUENCE_ALLFRAMES)
         self.rd.SetLong(c4d.RDATA_RENDERENGINE, c4d.RDATA_RENDERENGINE_PREVIEWHARDWARE)
-        self.rd.SetBool(c4d.RDATA_TEXTURES, True)
+        # self.rd.SetBool(c4d.RDATA_TEXTURES, True)
         self.rd.SetBool(c4d.RDATA_GLOBALSAVE, True)
         self.rd.SetBool(c4d.RDATA_SAVEIMAGE, True)
         self.rd.SetBool(c4d.RDATA_ALPHACHANNEL, False)
+        # self.rd.SetBool(c4d.RDATA_OPTION_REFLECTION,True)
         self.rd.SetInt32(c4d.RDATA_FORMATDEPTH, c4d.RDATA_FORMATDEPTH_8)
         self.rd.SetInt32(c4d.RDATA_FORMAT, 1125)
         self.rd.SetFilename(c4d.RDATA_PATH, file)
@@ -287,7 +328,7 @@ class Flipbook(object):
         y = int(x)/self.rd.GetReal(c4d.RDATA_FILMASPECT)
         self.rd.SetInt32(c4d.RDATA_YRES, int(y))
         bmp = c4d.bitmaps.MultipassBitmap(int(self.rd[c4d.RDATA_XRES]), int(self.rd[c4d.RDATA_YRES]), c4d.COLORMODE_RGB)
-        if c4d.documents.RenderDocument(self.doc,self.rd, bmp ,c4d.RENDERFLAGS_PREVIEWRENDER|c4d.RENDERFLAGS_EXTERNAL) != c4d.RENDERRESULT_OK:
+        if c4d.documents.RenderDocument(self.doc,self.rd, bmp ,c4d.RENDERFLAGS_EXTERNAL) != c4d.RENDERRESULT_OK:
             raise RuntimeError("Failed to render the temporary document.")
         else:
             c4d.gui.MessageDialog(f"导出成功\n{file}")
@@ -307,27 +348,32 @@ class GUI(c4d.gui.GeDialog):
                     self.AddButton(100,c4d.BFH_LEFT,0,0,"版本更新")
                     self.AddButton(102,c4d.BFH_LEFT,0,0,"本地化资产")
                 self.GroupEnd()
-                if self.GroupBegin(11, c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 2, 5, '导出给别人', 0, 0, 0):
-                    self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择用户',0)
-                    self.AddComboBox(1000,c4d.BFH_CENTER,80,10,False,False)
-                    index = 10001
-                    for user in _user:
-                        self.AddChild(1000,index,user)
-                        index+=1
-                    
-                    self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择格式',0)
-                    self.AddComboBox(1001,c4d.BFH_CENTER,80,10,False,False)
-                    index = 20001
-                    for format in _format:
-                        self.AddChild(1001,index,format)
-                        index+=1
-                    
-                    self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择工程',0)
-                    self.AddComboBox(1002,c4d.BFH_CENTER,80,10,False,False)
-                    self.AddCheckbox(2000,c4d.BFH_LEFT,0,0,"动画")
-                    self.AddCheckbox(2001,c4d.BFH_LEFT,0,0,"摄影机")
-                    self.AddCheckbox(2002, c4d.BFH_LEFT, 0, 0, "贴图")
-                    self.AddButton(101,c4d.BFH_CENTER,0,0,"导出选择物体给他人")        
+                if self.GroupBegin(11, c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 1, 5, '导出给别人', 0, 0, 0):
+                    if self.GroupBegin(14, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 2, 5, '导出给别人', 0, 0, 0):
+                        self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择用户',0)
+                        self.AddComboBox(1000,c4d.BFH_LEFT,80,10,False,False)
+                        index = 10001
+                        for user in _user:
+                            self.AddChild(1000,index,user)
+                            index+=1
+
+                        self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择格式',0)
+                        self.AddComboBox(1001,c4d.BFH_LEFT,80,10,False,False)
+                        index = 20001
+                        for format in _format:
+                            self.AddChild(1001,index,format)
+                            index+=1
+
+                        self.AddStaticText(11,c4d.BFH_LEFT,0,0,'选择工程',0)
+                        self.AddComboBox(1002,c4d.BFH_LEFT,80,10,False,False)
+                    self.GroupEnd()
+                    if self.GroupBegin(13, c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 4, 5, 'test', 0, 0, 0):
+                        self.AddCheckbox(2000, c4d.BFH_LEFT,0,0, "动画")
+                        self.AddCheckbox(2001, c4d.BFH_LEFT,0,0, "摄影机")
+                        self.AddCheckbox(2002, c4d.BFH_LEFT, 0, 0, "材质")
+                        self.AddCheckbox(2003, c4d.BFH_LEFT, 0, 0, "贴图")
+                        self.AddButton(101,c4d.BFH_CENTER,0,0,"导出选择物体给他人")
+                    self.GroupEnd()
                 self.GroupEnd()
                 if self.GroupBegin(12,c4d.BFH_SCALEFIT|c4d.BFV_SCALEFIT, 2, 3, '渲染', 0, 0, 0):
                     self.AddButton(104, c4d.BFH_CENTER, 0, 0, "拍屏")
@@ -369,11 +415,12 @@ class GUI(c4d.gui.GeDialog):
             # format = _format[f-20001]
             ani = self.GetBool(2000)
             cam = self.GetBool(2001)
-            tex = self.GetBool(2002)
+            mat = self.GetBool(2002)
+            tex = self.GetBool(2003)
             # print(f'{user} {format} ')
             print(tasks)
             if all((user,tasks[t],f)):
-                export(user,tasks[t],f,ani,cam,tex)
+                export(user,tasks[t],f,ani,cam,mat,tex)
             else:
                 c4d.gui.MessageDialog("none",0)
         if id == 102:
