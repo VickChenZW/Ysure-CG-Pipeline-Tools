@@ -1,5 +1,6 @@
-import os, Function
+import os
 from PySide2.QtCore import QObject, Signal
+from scripts import Function
 Root, Project, User = Function.get_ini()
 
 task = ""

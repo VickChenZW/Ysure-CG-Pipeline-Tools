@@ -151,7 +151,7 @@ def create_work_Folder(path, user, name, list):
             os.makedirs(project_path + "/" +l)
 
 
-def ini(root, project, user):
+def ini(root, project, user,version):
     config = configparser.ConfigParser()
 
     config["Settings"] = {
@@ -159,10 +159,14 @@ def ini(root, project, user):
         "current_Project": project,
         "current_User": user,
     }
-    if not os.path.exists(os.path.join(base_dir,"config")):
-        os.makedirs(os.path.join(base_dir,"config"))
+    config["Version"] = {
+        "version": version,
+        "update_data": datetime.now().strftime()
+    }
+    if not os.path.exists(os.path.join(base_dir, "../config")):
+        os.makedirs(os.path.join(base_dir, "../config"))
 
-    path = os.path.join(base_dir,"config","config.ini")
+    path = os.path.join(base_dir, "../config", "config.ini")
     with open(path,"w") as f:
         config.write(f)
     f.close()
@@ -170,7 +174,7 @@ def ini(root, project, user):
 
 def get_ini():
     config = configparser.ConfigParser()
-    path = os.path.join(base_dir, "config", "config.ini")
+    path = os.path.join(base_dir, "../config", "config.ini")
     if os.path.exists(path):
         config.read(path)
 

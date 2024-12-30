@@ -1,14 +1,12 @@
-import json
 import os
 from PySide2.QtWidgets import (QHBoxLayout,
                             QVBoxLayout, QWidget,
                             QPushButton, QLineEdit, QTextEdit, QListWidget,QListWidgetItem
                             , QDialog, QMessageBox
                             )
-from PySide2.QtCore import QSize, Qt
-from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon, QPixmap
-import Function, Global_Vars
-from Global_Vars import gv
+from PySide2.QtGui import QIcon
+from scripts import Function, Global_Vars
+from scripts.Global_Vars import gv
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _user = ["Neo", "Vick", "YL", "Jie", "K", "O"]
@@ -35,14 +33,14 @@ class Opensub(QDialog):
         super().__init__()
         self.setWindowTitle("打开子文件夹")
         self.layout = QVBoxLayout()
-        self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "version.ico")))
         assets = ["Documents", "HDRI", "Image", "Model", "PS+AI", "Temp", "Texture", "Video"]
         for asset in assets:
             open_btn = QPushButton(asset)
             self.layout.addWidget(open_btn)
             open_btn.setCheckable(False)
             open_btn.setChecked(False)
-            open_btn.pressed.connect(lambda checked=False,a=asset: os.startfile(os.path.join(Global_Vars.Project,'1.File',a)))
+            open_btn.pressed.connect(lambda checked=False,a=asset: os.startfile(os.path.join(Global_Vars.Project, '1.File', a)))
         self.setLayout(self.layout)
 
 class project_manager(QWidget):
@@ -63,12 +61,12 @@ class project_manager(QWidget):
         btn_refresh.pressed.connect(self.refresh)
 
         btn_setproject = QPushButton("")
-        btn_setproject.setIcon(QIcon(os.path.join(base_dir, "icon", "right.ico")))
+        btn_setproject.setIcon(QIcon(os.path.join(base_dir, "../icon", "right.ico")))
         btn_setproject.pressed.connect(self.change_project)
         btn_edit_file = QPushButton("")
-        btn_edit_file.setIcon(QIcon(os.path.join(base_dir, "icon", "edit_file.ico")))
+        btn_edit_file.setIcon(QIcon(os.path.join(base_dir, "../icon", "edit_file.ico")))
         btn_open_sub = QPushButton("")
-        btn_open_sub.setIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        btn_open_sub.setIcon(QIcon(os.path.join(base_dir, "../icon", "version.ico")))
         btn_open_sub.pressed.connect(self.opensub)
 
 
@@ -113,7 +111,7 @@ class project_manager(QWidget):
             error("英文名字不为英文！！")
         else:
             des = self.describe_lab.toPlainText()
-            new_path = Global_Vars.Root + "/" + date+"_"+en_name
+            new_path = Global_Vars.Root + "/" + date + "_" + en_name
             Function.create_path(new_path)
             Function.create_sub_folders(new_path)
             Function.create_project_info(name, en_name, des, new_path)

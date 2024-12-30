@@ -1,25 +1,22 @@
-import json
 import os
 import sys
 from PySide2.QtWidgets import (
     QMainWindow, QApplication,
-    QLabel,  QHBoxLayout,
+    QLabel, QHBoxLayout,
     QVBoxLayout, QWidget, QTabWidget, QPushButton,
-    QFileDialog, QLineEdit, QTextEdit, QListWidget,QListWidgetItem,
-    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QMessageBox,
-    QStackedLayout,QComboBox, QMenuBar, QMenu,QToolBar,QAction, QStatusBar
+    QFileDialog, QLineEdit, QListWidget, QDialog, QDialogButtonBox, QAction, QStatusBar
 
 )
 from PySide2.QtCore import QSize, Qt
-from PySide2.QtGui import QFont, QDropEvent, QEnterEvent, QDragLeaveEvent, QIcon, QPixmap, QDragEnterEvent
-import Function
+from PySide2.QtGui import QFont, QDropEvent, QDragLeaveEvent, QIcon, QPixmap, QDragEnterEvent
 import qdarktheme
-from Work_Project import Work_Project
-from Project_Manage import project_manager
-from file_exchange import File_Exchange
-from Render_List import render_list
-import Global_Vars
-from Global_Vars import gv
+from scripts.Work_Project import Work_Project
+from scripts.Project_Manage import project_manager
+from scripts.file_exchange import File_Exchange
+from scripts.Render_List import render_list
+from scripts.Global_Vars import gv
+
+from scripts import address_trans, Global_Vars, Function
 
 ## header with logo
 
@@ -288,12 +285,13 @@ class MainWindow(QMainWindow):
         tabs.setTabPosition(QTabWidget.North)
         wm = Work_Project()
         head = header()
+        self.clip_plane = address_trans.ClipBoard_Function()
         tabs.addTab(project_manager(wm,head), "项目管理")
 
         tabs.addTab(wm, "工作文件管理")
         tabs.addTab(File_Exchange(), "文件交换管理")
         tabs.addTab(render_list(), "渲染文件管理")
-        tabs.addTab(ClipBoard_Function(), "文件路径转换")
+        tabs.addTab(self.clip_plane, "文件路径转换")
         fonts = tabs.font()
         fonts.setPointSize(13)
         fonts.setBold(True)
@@ -336,6 +334,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(Main)
 
         gv.or_changed.connect(lambda value: self.statusBar.showMessage(value,3000))
+
+    def closeEvent(self, event):
+        self.clip_plane.close_widget()
 
     def save(self):
         Function.ini(Global_Vars.Root, Global_Vars.Project, Global_Vars.User)

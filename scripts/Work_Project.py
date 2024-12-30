@@ -1,20 +1,20 @@
 import os, json,shutil, ctypes
 from PySide2.QtWidgets import (
     QLabel, QTabWidget, QWidget, QPushButton,
-    QHBoxLayout, QVBoxLayout, QStackedLayout, QLineEdit, QListWidget,
+    QHBoxLayout, QVBoxLayout, QLineEdit, QListWidget,
     QComboBox, QDialog, QDialogButtonBox,
     QTextEdit, QListWidgetItem, QMessageBox, QTableView, QHeaderView,
     QSplitter
 )
 from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint, QSortFilterProxyModel, Signal
-from PySide2.QtGui import QFont, QIcon, QDrag, QStandardItemModel, QStandardItem
+from PySide2.QtGui import QIcon, QDrag, QStandardItemModel, QStandardItem
 
-import Function
+from  scripts import Function
 
 from datetime import datetime
 
-import Global_Vars
-from Global_Vars import gv
+from scripts import Global_Vars
+from scripts.Global_Vars import gv
 
 # 本地变量
 _DCC_ = ["Blender", "C4d", "Houdini", "Maya"]
@@ -49,7 +49,7 @@ class InputDialog(QDialog):
         # self.init_ui()
         self.t = title
         self.i = info
-        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
 
         self.setWindowTitle(self.t)
         self.setMinimumSize(QSize(300,200))
@@ -83,7 +83,7 @@ class ProjectDialog(QDialog):
         super().__init__()
         self.setWindowTitle("创建新工程")
         self.layout = QVBoxLayout()
-        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
         self.content_label = QLabel("内容名称:")
         self.layout.addWidget(self.content_label)
 
@@ -97,7 +97,7 @@ class ProjectDialog(QDialog):
         index = 0
         for key in _format_:
             self.dcc_select.addItem(key)
-            self.dcc_select.setItemIcon(index,QIcon(os.path.join(base_dir,"icon",key)))
+            self.dcc_select.setItemIcon(index, QIcon(os.path.join(base_dir, "../icon", key)))
             index+=1
         self.layout.addWidget(self.dcc_select)
 
@@ -142,7 +142,7 @@ class Opensub(QDialog):
         super().__init__()
         self.setWindowTitle("打开资产文件夹")
         self.layout = QVBoxLayout()
-        self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "version.ico")))
         self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo','ABC': 'alembic', 'VDB': 'vdb'}
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task
         self.tab = QTabWidget()
@@ -173,11 +173,11 @@ class Opensub(QDialog):
 class Flipbook_Dialog(QDialog):
     def __init__(self,content):
         super().__init__()
-        self.flip_path = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task + "/flipbook/"+content
+        self.flip_path = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task + "/flipbook/" + content
         self.content = content
         self.setWindowTitle("拍屏文件")
         self.layout = QVBoxLayout()
-        self.setWindowIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
         self.content_label = QLabel(self.content)
         self.list = DraggableListWidget()
         self.list.doubleClicked.connect(self.open)
@@ -265,7 +265,7 @@ class Work_Project(QWidget):
 
         project_add = QPushButton()
         project_add.pressed.connect(self.add_name_input)
-        project_add.setIcon(QIcon(os.path.join(base_dir,"icon","add.ico")))
+        project_add.setIcon(QIcon(os.path.join(base_dir, "../icon", "add.ico")))
         project_add.setToolTip("增加工程文件夹层级")
 
         self.list_project = DraggableListWidget()
@@ -299,31 +299,31 @@ class Work_Project(QWidget):
         splitter.setStretchFactor(1,1)
 
         btn_new = QPushButton()
-        btn_new.setIcon(QIcon(os.path.join(base_dir,"icon","new.ico")))
+        btn_new.setIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
         btn_new.setMinimumSize(QSize(40,40))
         btn_new.setToolTip("新建文件")
         btn_new.pressed.connect(self.create_new_project)
 
         btn_open_project = QPushButton()
-        btn_open_project.setIcon(QIcon(os.path.join(base_dir,"icon","open.ico")))
+        btn_open_project.setIcon(QIcon(os.path.join(base_dir, "../icon", "open.ico")))
         btn_open_project.setToolTip("打开文件")
         btn_open_project.setMinimumSize(QSize(40, 40))
         btn_open_project.pressed.connect(lambda: os.startfile(f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}'))
 
         btn_update = QPushButton()
-        btn_update.setIcon(QIcon(os.path.join(base_dir,"icon","updata.ico")))
+        btn_update.setIcon(QIcon(os.path.join(base_dir, "../icon", "updata.ico")))
         btn_update.setMinimumSize(QSize(40, 40))
         btn_update.setToolTip("版本升级")
         btn_update.pressed.connect(self.upgrade_selected_project)
 
         btn_refresh = QPushButton()
-        btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
+        btn_refresh.setIcon(QIcon(os.path.join(base_dir, "../icon", "refresh.ico")))
         btn_refresh.setMinimumSize(QSize(40, 40))
         btn_refresh.setToolTip("刷新")
         btn_refresh.pressed.connect(self.update_list)
 
         btn_subfolder = QPushButton()
-        btn_subfolder.setIcon(QIcon(os.path.join(base_dir, "icon", "version.ico")))
+        btn_subfolder.setIcon(QIcon(os.path.join(base_dir, "../icon", "version.ico")))
         btn_subfolder.setMinimumSize(QSize(40, 40))
         btn_subfolder.setToolTip("打开子文件夹")
         btn_subfolder.pressed.connect(self.opensub)
@@ -401,7 +401,7 @@ class Work_Project(QWidget):
         Global_Vars.task = self.project_combo.currentText()
         self.list_project.clear()
         projects_info = {}
-        self.data_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User+"/" + self.project_combo.currentText() + "/metadata/project.json"
+        self.data_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText() + "/metadata/project.json"
         # print(self.data_file)
         if os.path.exists(self.data_file):
             with open(self.data_file, 'r', encoding='utf-8') as file:
@@ -426,7 +426,7 @@ class Work_Project(QWidget):
                 item_text = f"{content_name} v{info['version']}"
                 item = QListWidgetItem(item_text)
                 item.setData(Qt.ItemDataRole.UserRole, info['project'])
-                item.setIcon(QIcon(os.path.join(base_dir,"icon",info["dcc"])))
+                item.setIcon(QIcon(os.path.join(base_dir, "../icon", info["dcc"])))
                 self.list_project.addItem(item)
 
     def create_new_project(self):
@@ -613,7 +613,7 @@ class Work_Project(QWidget):
         self.show_all_versions()
 
     def copy_and_rename(self,old_name,path,newname):
-        src = os.path.join(base_dir,"templates",old_name)
+        src = os.path.join(base_dir, "../templates", old_name)
         des = os.path.join(path,newname)
         shutil.copy(src,des)
 

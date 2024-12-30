@@ -1,13 +1,12 @@
-import os, json, sys
+import os, json
 from PySide2.QtWidgets import (QWidget, QListWidget,
-                               QLabel, QLineEdit, QMainWindow,
-                                QHBoxLayout, QVBoxLayout,QPushButton,QListWidgetItem
-                            )
-from PySide2.QtGui import QIcon, QPixmap, Qt, QDrag
+                               QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton, QListWidgetItem
+                               )
+from PySide2.QtGui import QIcon, Qt, QDrag
 from PySide2.QtCore import Qt, QSize, QUrl, QMimeData, QPoint
-import Function, Global_Vars
+from scripts import Function, Global_Vars
 
-root, project, user = Function.get_ini()
+# root, project, user = Function.get_ini()
 dic = {
     'file_name': "",
     'version': 0,
@@ -49,13 +48,13 @@ class File_Exchange(QWidget):
         self.list_In.currentItemChanged.connect(self.changetext)
 
         btn_refresh = QPushButton()
-        btn_refresh.setIcon(QIcon(os.path.join(base_dir,"icon","refresh.ico")))
+        btn_refresh.setIcon(QIcon(os.path.join(base_dir, "../icon", "refresh.ico")))
         btn_refresh.setToolTip("刷新")
         btn_refresh.pressed.connect(self.load_files)
         btn_refresh.setMinimumSize(QSize(40,40))
         btn_open = QPushButton()
         btn_open.clicked.connect(lambda: os.startfile(f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}/__IN__/'))
-        btn_open.setIcon(QIcon(QIcon(os.path.join(base_dir,"icon","open.ico"))))
+        btn_open.setIcon(QIcon(QIcon(os.path.join(base_dir, "../icon", "open.ico"))))
         btn_open.setToolTip("打开文件夹")
         btn_refresh.setMinimumSize(QSize(40,40))
 
@@ -101,7 +100,6 @@ class File_Exchange(QWidget):
                             item = QListWidgetItem(file['file_name'])
                             file.update({"path": path+file["file_name"]})
                             item.setData(Qt.UserRole, file)
-                            # print(path + file["file_name"])
                             self.list_In.addItem(item)
                             new_info.append(file)
                 f.seek(0)
