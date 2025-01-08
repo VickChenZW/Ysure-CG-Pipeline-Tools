@@ -1,20 +1,41 @@
 from PySide2.QtWidgets import (QWidget, QHBoxLayout, QListWidget,
                                QVBoxLayout, QLabel, QListWidgetItem,
-                               QLineEdit, QPushButton)
+                               QLineEdit, QMenu, QAction, QPushButton)
 from PySide2.QtCore import Qt, QMimeData, QUrl, QPoint, QSize
-from PySide2.QtGui import QDrag, QIcon
+from PySide2.QtGui import QDrag, QIcon, QDropEvent, QDragLeaveEvent, QColor
 from  scripts import Global_Vars
 import os, re, json
+from datetime import datetime
 from pathlib import Path
 
 # pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
-pattern_seq = re.compile(r'^(.*?_)(\d{4})\..*$')
+pattern_seq = re.compile(r'^(.*?)(\d{4})\..*$')
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
+
+def get_Nuke_path(original_path):
+    result = original_path
+    file_count = sum(1 for item in os.listdir(original_path) if not os.path.isdir(os.path.join(original_path,item)) and not item.startswith('.'))
+    print(file_count)
+    for i in os.listdir(original_path):
+        if os.path.isdir(os.path.join(original_path, i)):
+            pass
+        else:
+            match = pattern_seq.match(i)
+            if match:
+                prefix = match.group(1)  # 获取前缀部分（包括下划线）
+                number = int(match.group(2))  # 提取四位数字并转换为整数
+                suffix = '.' + i.split('.')[-1]  # 获取文件后缀名
+                if file_count == 1:
+                    result = f"{original_path}/{i}"
+                else:
+                    result = f"{original_path}/{prefix}%04d{suffix}"
+                break
+    return result
 class DraggableListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAcceptDrops(True)
+        self.setAcceptDrops(False)
         self.setDragEnabled(True)
         self.out_Ae = True
 
@@ -28,7 +49,7 @@ class DraggableListWidget(QListWidget):
         if self.out_Ae:
             pass
         else:
-            path = self.get_Nuke_path(path)
+            path = get_Nuke_path(path)
         mime_data = QMimeData()
         mime_data.setUrls([QUrl.fromLocalFile(path)])
 
@@ -39,26 +60,8 @@ class DraggableListWidget(QListWidget):
 
         drop_action = drag.exec_(supportedActions)
 
-    def get_Nuke_path(self,original_path):
-        files_with_numbers = []
-        directory = Path(original_path)
-        for entry in directory.iterdir():
-            if entry.is_file():  # 只处理文件，忽略文件夹
-                match = pattern_seq.match(entry.name)
-                if match:
-                    prefix = match.group(1)  # 获取前缀部分（包括下划线）
-                    number = int(match.group(2))  # 提取四位数字并转换为整数
-                    suffix = entry.suffix  # 获取文件后缀名
-                    files_with_numbers.append((prefix, number, suffix))
-        if not files_with_numbers:
-            print("没有符合条件的文件")
-            return None
-        min_file = min(files_with_numbers, key=lambda x: x[1])
-        max_file = max(files_with_numbers, key=lambda x: x[1])
 
-        result = f"{original_path}/{min_file[0]}%04d{min_file[2]} {min_file[1]}-{max_file[1]}"
-        print(result)
-        return result
+
 
 class render_list(QWidget):
     def __init__(self):
@@ -90,27 +93,40 @@ class render_list(QWidget):
         self.label_project.setEnabled(False)
         self.label_describe = QLineEdit()
         self.label_describe.editingFinished.connect(self.change_note)
+        self.label_name = QLabel()
         self.label_count = QLabel("渲染帧数")
         self.label_count.setEnabled(False)
+        self.list_take = DraggableListWidget()
+        self.list_take.setHidden(True)
         self.list_AOV = DraggableListWidget()
+
 
         tool_layout = QVBoxLayout()
         sublist_layer = QVBoxLayout()
         self.layout = QHBoxLayout()
+        list_layout = QHBoxLayout()
 
         tool_layout.addWidget(self.btn_software_choose)
         tool_layout.addWidget(self.btn_refresh)
         tool_layout.addWidget(btn_open)
         tool_layout.addStretch()
 
+        list_layout.addWidget(self.list_take)
+        list_layout.addWidget(self.list_AOV)
+
         sublist_layer.addWidget(self.label_project)
+        sublist_layer.addWidget(self.label_name)
         sublist_layer.addWidget(self.label_describe)
         sublist_layer.addWidget(self.label_count)
-        sublist_layer.addWidget(self.list_AOV)
+        sublist_layer.addLayout(list_layout)
+
+
 
         self.layout.addLayout(tool_layout)
         self.layout.addWidget(self.list_render)
         self.layout.addLayout(sublist_layer)
+
+        Global_Vars.gv.user_changed.connect(self.update_render_list)
 
         self.setLayout(self.layout)
         self.update_render_list()
@@ -118,38 +134,69 @@ class render_list(QWidget):
 
     def update_render_list(self):
         self.list_render.clear()
+        file_list = []
         render_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task,
                                    "render").replace('\\', "/")
-        if render_path:
+        if render_path :
             json_path = self.create_Info()
-            with open(json_path, "r+", encoding="utf-8") as f:
-                infos = json.load(f)
-                list = os.listdir(render_path)
-                for i in list:
-                    if  "metadata" not in i and ".DS_Store" not in i:
-                        existing = any(i == info['content'] for info in infos)
-                        date = i.split("_")[0]
-                        version = i.split("_")[-1]
-                        project = i.split("_")[1:-2]
-                        name = "_".join(project)
-                        if not existing:
-                            new_info = {
-                                'content': i,
-                                'path': os.path.join(render_path, i).replace("\\", "/"),
-                                'notes': ""
+            if os.path.exists(json_path):
+                with open(json_path, "r+", encoding="utf-8") as f:
+                    infos = json.load(f)
+                    list = os.listdir(render_path)
+                    for i in list:
+                        if "metadata" not in i and ".DS_Store" not in i:
+                            create_time = os.path.getctime(os.path.join(render_path,i))
+                            min_time = datetime.fromtimestamp(create_time)
+                            sort_info = {
+                                'name': i,
+                                'mtime': min_time
                             }
-                            infos.append(new_info)
-                            item = QListWidgetItem(f'{name}版本{str(version).zfill(3)}')
-                            item.setData(Qt.UserRole, new_info)
-                            self.list_render.addItem(item)
-                        else:
-                            for info in infos:
-                                if info["content"] == i:
-                                    item = QListWidgetItem(f'{name}版本{str(version).zfill(3)}')
-                                    item.setData(Qt.UserRole, info)
-                                    self.list_render.addItem(item)
-                f.seek(0)
-                json.dump(infos, f, ensure_ascii=False, indent=4)
+                            file_list.append(sort_info)
+                    file_list.sort(key= lambda x: x['mtime'], reverse=True)
+
+                    for file in file_list:
+                        take = False
+                        i = file['name']
+                        if  "metadata" not in i and ".DS_Store" not in i:
+                            existing = any(i == info['content'] for info in infos)
+                            date = i.split("_")[0]
+                            version = i.split("_")[-1]
+                            if '.take' in i:
+                                project = i.split("_")[1:-3]
+                                take = True
+                            else:
+                                project = i.split("_")[1:-2]
+                            name = "_".join(project)
+                            modify_time = os.path.getctime(os.path.join(render_path,i))
+
+                            mtime = datetime.fromtimestamp(int(modify_time)).strftime('%m%d')
+                            if not existing:
+                                new_info = {
+                                    'content': i,
+                                    'path': os.path.join(render_path, i).replace("\\", "/"),
+                                    'notes': "",
+                                    'take': str(take)
+                                }
+                                infos.append(new_info)
+                                if '.take' in i:
+                                    tag = f'{mtime} {name}版本{str(version).zfill(3)}(有场次)'
+                                else:
+                                    tag = f'{mtime} {name}版本{str(version).zfill(3)}'
+                                item = QListWidgetItem(tag)
+                                item.setData(Qt.UserRole, new_info)
+                                self.list_render.addItem(item)
+                            else:
+                                for info in infos:
+                                    if info["content"] == i:
+                                        if info['take'] == "True":
+                                            tag = f'{mtime} {name}版本{str(version).zfill(3)}(有场次)'
+                                        else:
+                                            tag = f'{mtime} {name}版本{str(version).zfill(3)}'
+                                        item = QListWidgetItem(tag)
+                                        item.setData(Qt.UserRole, info)
+                                        self.list_render.addItem(item)
+                    f.seek(0)
+                    json.dump(infos, f, ensure_ascii=False, indent=4)
 
     def create_Info(self):
         info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render",
@@ -165,19 +212,60 @@ class render_list(QWidget):
 
     def update_sub(self):
         self.list_AOV.clear()
+        self.list_take.clear()
         item = self.list_render.currentItem()
+        self.list_take.currentItemChanged.connect(None)
 
-        # print(info)
         if item:
             info = item.data(Qt.UserRole)
             file_name = os.path.basename(info["content"])
-            print(f'工程来源：{"_".join(file_name.split("_")[1:-1])}')
-            self.label_project.setText(f'工程来源：{"_".join(file_name.split("_")[1:-1])}')
+
             self.label_project.setProperty("content", file_name)
-            # self.load_description(path)
+
             self.label_describe.setText(info['notes'])
+            if ".take" in file_name:
+                self.list_take.setHidden(False)
+                self.label_project.setText(f'工程来源：{"_".join(file_name.split("_")[1:-2])}')
+                self.update_take()
+                self.list_take.currentItemChanged.connect(self.update_aov_list)
+
+            else:
+                self.list_take.currentItemChanged.connect(None)
+                self.label_project.setText(f'工程来源：{"_".join(file_name.split("_")[1:-1])}')
+                self.list_take.setHidden(True)
+                self.update_aov_list(self.list_render.currentItem())
+
+
+    def update_take(self):
+        self.list_AOV.clear()
+        self.list_take.clear()
+        item = self.list_render.currentItem()
+        self.list_take.currentItemChanged.connect(None)
+
+        if item:
+            info = item.data(Qt.UserRole)
             count = 0
-            for i in os.scandir(info["path"]):
+            render_name = ""
+            root_path = info['path']
+            for n in os.listdir(root_path):
+                if os.listdir(os.path.join(root_path,n)):
+                    path = os.path.join(root_path,n).replace('\\','/')
+                    name = n
+                    item_take = QListWidgetItem(name)
+                    item_take.setData(Qt.UserRole, {'path': path})
+                    self.list_take.addItem(item_take)
+            self.list_take.currentItemChanged.connect(self.update_aov_list)
+            self.label_count.setText(f'帧数:{str(count)}')
+            self.label_name.setText(f'渲染名:{render_name}')
+
+    def update_aov_list(self, value):
+        self.list_AOV.clear()
+        if value:
+            data = value.data(Qt.UserRole)
+            path = data['path']
+            count = 0
+            render_name = ''
+            for i in os.scandir(path):
                 if os.path.isdir(i):
                     path = i.path
                     name = i.name
@@ -187,10 +275,14 @@ class render_list(QWidget):
                     self.list_AOV.addItem(item)
                 else:
                     count += 1
-                self.label_count.setText(f'帧数:{str(count)}')
+                    render_name = pattern_seq.match(i.name).group(1)[0:-1]
+                    # print(i.name)
+            self.label_count.setText(f'帧数:{str(count)}')
+            self.label_name.setText(f'渲染名:{render_name}')
+        else:
+            pass
 
     def change_note(self):
-        print("finish")
         name = self.label_project.property("content")
         info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render",
                                  "metadata").replace('\\', "/")
@@ -207,8 +299,6 @@ class render_list(QWidget):
                 if info["content"] == name:
                     info["notes"] = new_notes
                 new.append(info)
-            for i in new:
-                print(i)
             f.seek(0)
             f.truncate()
             json.dump(new, f, ensure_ascii=False, indent=4)
@@ -225,6 +315,8 @@ class render_list(QWidget):
             self.out_Ae = False
 
         self.list_render.out_Ae = self.out_Ae
+        self.list_AOV.out_Ae = self.out_Ae
+        self.list_take.out_Ae = self.out_Ae
 
 
 

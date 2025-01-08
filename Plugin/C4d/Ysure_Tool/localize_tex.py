@@ -1,5 +1,5 @@
-import c4d
-import os,shutil
+import c4d, redshift
+import os,shutil, re
 
 import maxon
 
@@ -129,7 +129,54 @@ class Flipbook(object):
         c4d.documents.RenderDocument(self.doc,self.rd, bmp ,c4d.RENDERFLAGS_PREVIEWRENDER|c4d.RENDERFLAGS_EXTERNAL)
 
 
+class ChangeRenderPath():
+    def __init__(self):
+        self._pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
+        self.doc = c4d.documents.GetActiveDocument()
+        self.render_date = self.doc.GetActiveRenderData()
+
+    def change_render_path(self):
+        # self.doc = c4d.documents.GetActiveDocument()
+        render_path = os.path.join(self.doc.GetDocumentPath(),"render")
+        list = os.listdir(render_path)
+        project_name = self.doc.GetDocumentName()
+        content_name = re.match(self._pattern,project_name).group(1)
+        version = 1
+        for i in list:
+            if not "metadata" in i:
+                parts = i.split("_")[1:-2]
+                name_part = "_".join(parts)
+                print(name_part)
+                ver_part = int(i.split("_")[-1].split('v')[-1])
+                if name_part ==content_name and ver_part>=version:
+                    version = ver_part+1
+        ver_str = str(version).zfill(3)
+
+
+        self.render_date[c4d.RDATA_PATH]=f'render/$YYYY$MM$DD_$prj_v{ver_str}/$prj_'
+        self.doc.SetActiveRenderData(self.render_date)
+        # print(render_date[c4d.RDATA_PATH])
+        c4d.gui.MessageDialog("设置完成，请自行更改文件输出名字")
+
+    def change_aov_path(self,is_mutil):
+        if is_mutil:
+            self.render_date[c4d.RDATA_MULTIPASS_SAVEONEFILE] = True
+            self.render_date[c4d.RDATA_MULTIPASS_FILENAME] = 'AOV/$prj_$take_AOV_'
+        else:
+            self.render_date[c4d.RDATA_MULTIPASS_SAVEONEFILE] = False
+            self.render_date[c4d.RDATA_MULTIPASS_FILENAME] = '$prj_AOV'
+
+
+        ## 更改RS的AOV
+        vprs = redshift.FindAddVideoPost(self.render_date, redshift.VPrsrenderer)
+        aovs = redshift.RendererGetAOVs(vprs)
+        for aov in aovs:
+            aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$filename_$pass/$pass_')
+            print(aov.GetParameter(c4d.REDSHIFT_AOV_FILE_PATH))
+        redshift.RendererSetAOVs(vprs, aovs)
+
+
 
 if __name__ == "__main__":
-    fb = Local_Tex()
-    fb.get_select_tex()
+    fb = ChangeRenderPath()
+    fb.change_aov_path()

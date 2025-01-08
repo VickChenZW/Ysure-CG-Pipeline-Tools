@@ -56,4 +56,5 @@ class global_Var(QObject):
 
 
 
+
 gv = global_Var()

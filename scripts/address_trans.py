@@ -54,7 +54,7 @@ class desktop_widget(QMainWindow):
         super().__init__()
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setFixedSize(QSize(150,150))
+        self.setFixedSize(QSize(50, 50))
         self.label = Drag_Function()
         # layout = QVBoxLayout()
         # layout.addWidget(self.label)

@@ -16,13 +16,13 @@ from scripts.file_exchange import File_Exchange
 from scripts.Render_List import render_list
 from scripts.Global_Vars import gv
 
-from scripts import address_trans, Global_Vars, Function
+from scripts import address_trans, Global_Vars, Function, Temp_update
 
 ## header with logo
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _user = ["Neo", "Vick", "YL", "Jie", "K", "O"]
-about = "制作：Vick   测试版beta v0.1"
+about = "制作：Vick   测试版beta v0.2"
 
 class User_Choose(QDialog):
     def __init__(self):
@@ -137,6 +137,7 @@ class header(QWidget):
 
 
 
+
     def open_file_Dic(self):
         # global root
         str_path = QFileDialog.getExistingDirectory(None, "选择文件夹", self.file_path_text.text())
@@ -171,109 +172,13 @@ class header(QWidget):
         self.path_label.clear()
         Global_Vars.Root = self.file_path_text.text()
 
-## Clipboard Funcction
-class Drag_Function(QLabel):
-    def __init__(self):
-        super().__init__()
-        self.setAcceptDrops(True)
-        self.setText("拖动到此处")
-        self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                                   color : #747474;''')
 
-
-    def dragEnterEvent(self, event:QDragEnterEvent) -> None:
-        if event.mimeData().hasText():
-            event.acceptProposedAction()
-            text = event.mimeData().text()
-            if "smb" in text or "Volumes" in  text:
-                self.setStyleSheet('''background : rgba(10,200,10,0.5)''')
-                self.setText("松开打开文件目录")
-                self.setCursor(Qt.ClosedHandCursor)
-            else:
-                self.setStyleSheet('''background : rgba(10,200,80,0.5)''')
-                self.setText("松开拷贝Mac文件目录")
-
-
-    def dragLeaveEvent(self, event:QDragLeaveEvent) -> None:
-        self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                                   color : #747474;''')
-        self.setText("拖动到此处")
-        self.setCursor(Qt.OpenHandCursor)
-
-    def dropEvent(self, event:QDropEvent) -> None:
-        if event.mimeData().hasText():
-            text = event.mimeData().text()
-            if "smb" in text or "Volumes" in  text:
-                Function.mac_2_win(text)
-            else:
-                Function.win_2_mac(text)
-
-            self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                           color : #747474;''')
-            self.setText("拖动到此处")
-class ClipBoard_Function(QWidget):
-    def __init__(self):
-        super().__init__()
-
-        layout = QVBoxLayout()
-        btn_layout = QHBoxLayout()
-
-        btn_M2W = QPushButton("Mac-->Windows")
-        btn_M2W.pressed.connect(self.get_Win_Address)
-        btn_W2M = QPushButton("Windows-->Mac")
-        btn_W2M.pressed.connect(self.get_Mac_Address)
-        btn_W2M.setMinimumHeight(50)
-        btn_M2W.setMinimumHeight(50)
-
-
-        drag_lab = Drag_Function()
-        font = QFont("Microsoft YaHei UI", 30)
-        font.setBold(True)
-        # drag_lab.setStyleSheet('''background : rgba(200,200,200,0.5);
-        #                        color : #747474;''')
-        drag_lab.setAlignment(Qt.AlignCenter)
-        drag_lab.setFont(font)
-
-
-        btn_layout.addWidget(btn_M2W)
-        btn_layout.addWidget(btn_W2M)
-
-
-        layout.addLayout(btn_layout)
-        layout.addWidget(drag_lab)
-
-        self.setLayout(layout)
-
-    def debug(self):
-        print("test")
-
-    def get_Win_Address(self):
-        Function.mac_2_win(Function.get_from_clipboard())
-
-    def get_Mac_Address(self):
-        Function.win_2_mac(Function.get_from_clipboard())
-
-class CustomDialog(QDialog):
-    def __init__(self,mes):
-        super().__init__()
-
-        self.setWindowTitle("警告")
-
-        QBtn = QDialogButtonBox.Ok
-
-        self.buttonBox = QDialogButtonBox(QBtn)
-        self.buttonBox.accepted.connect(self.reject)
-
-        self.layout = QVBoxLayout()
-        message = QLabel(mes)
-        self.layout.addWidget(message)
-        self.layout.addWidget(self.buttonBox)
-        self.setLayout(self.layout)
 ## Main Window
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         # self.work_path = ""
+
         self.setWindowTitle("Ysure 工具组件")
         self.setMinimumSize(QSize(800,500))
         self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "Y_black.ico")))
@@ -305,6 +210,7 @@ class MainWindow(QMainWindow):
         save_action = QAction("&保存",self)
         update_action = QAction("&更新",self)
         save_action.triggered.connect(self.save)
+        update_action.triggered.connect(self.update_version)
         file_menu.addAction(save_action)
         file_menu.addAction(update_action)
         # layout
@@ -335,6 +241,9 @@ class MainWindow(QMainWindow):
 
         gv.or_changed.connect(lambda value: self.statusBar.showMessage(value,3000))
 
+        self.update = Temp_update.CheckUpdate()
+        self.update.update_signal.connect(lambda :self.close())
+
     def closeEvent(self, event):
         self.clip_plane.close_widget()
 
@@ -342,9 +251,20 @@ class MainWindow(QMainWindow):
         Function.ini(Global_Vars.Root, Global_Vars.Project, Global_Vars.User)
         self.statusBar.showMessage("保存成功", 3000)
 
+    def update_version(self):
+        if not self.update.check_update():
+            self.statusBar.showMessage("你已经是最新版本!!",5000)
+
+    def update_signal(self,value):
+        if value == "close":
+            self.close()
 
 
-app = QApplication(sys.argv)
-w = MainWindow()
-w.show()
-app.exec_()
+
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    w = MainWindow()
+    w.show()
+    app.exec_()

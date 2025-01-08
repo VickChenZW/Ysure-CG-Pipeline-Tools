@@ -21,6 +21,7 @@ pattern_name = r"^(.*?)(?:_v\d{3}\.\w+)$"
 pattern_version = r'(?<=_v)\d+(?![\d_]*\b_v)'
 pattern_render_folder = r'\d{8}_(.*?)(?:_v\d{3})'
 
+
 def get_date():
     now = datetime.now()
     year = str(now.year)
@@ -45,34 +46,40 @@ class select_user(QDialog):
 
         self._user_path = ""
 
-        label = QLabel("输出节点生成器")
+        self.layout = QVBoxLayout()
         self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "Y_black.ico")))
 
-        btn_fbx = QPushButton("FBX")
-        btn_fbx.clicked.connect(lambda :print(hou.selectedNodes()[0]))
-        btn_abc = QPushButton("ABC")
-        btn_rs = QPushButton("RS代理")
+        label = QLabel("输出节点生成器")
+        label.setMinimumHeight(30)
+        self.layout.addWidget(label)
 
-        layout_btn = QHBoxLayout()
-        [layout_btn.addWidget(i) for i in [btn_fbx, btn_abc, btn_rs]]
+        self.format_combo = QComboBox()
+        [self.format_combo.addItem(i) for i in ['FBX', 'ABC', 'RS_Proxy']]
+        self.layout.addWidget(self.format_combo)
 
         layout_user = QHBoxLayout()
         self.user_combo = QComboBox()
         self.task_combo = QComboBox()
-
         [layout_user.addWidget(i) for i in [self.user_combo, self.task_combo]]
+        self.layout.addLayout(layout_user)
 
+        self.notes_label = QLineEdit('输入备注')
+        self.notes_label.setMinimumHeight(60)
+        self.layout.addWidget(self.notes_label)
+
+        btn_Confirm = QPushButton("创建输出节点")
+        btn_Confirm.clicked.connect(self.run)
+        self.layout.addWidget(btn_Confirm)
+
+        self.layout.addStretch()
 
         self.change_user_combo()
-
         self.setWindowTitle("选择导出对象")
         self.setFixedSize(QSize(300,400))
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(label)
-        self.layout.addLayout(layout_btn)
-        self.layout.addLayout(layout_user)
-        self.setLayout(self.layout)
 
+
+        self.setLayout(self.layout)
+"/"
     def get_user_path(self):
         self._user_path = hou.hipFile.path()
         for _ in range(3):
@@ -91,9 +98,70 @@ class select_user(QDialog):
         for i in os.listdir(os.path.join(self._user_path,self.user_combo.currentText())):
             self.task_combo.addItem(i)
 
-    def fbx(self):
-        node = hou.Node.createNode("rop_FBX")
+    def get_path(self):
+        root_path = hou.hipFile.path()
+        for _ in range(3):
+            root_path = os.path.dirname(root_path)
+        des_path = os.path.join(root_path,self.user_combo.currentText(),self.task_combo.currentText(),'__IN__')
 
+        return des_path
+
+    def change_pram(self,rop_node):
+        rop_node.parm('sopoutput').set(f'{self.get_path()}/$OS.fbx'.replace('\\','/'))
+
+
+        rop_node.parm("user_text").disable(True)
+        rop_node.parm("user_text").set(self.user_combo.currentText())
+
+        rop_node.parm("takes_text").disable(True)
+        rop_node.parm("takes_text").set(self.task_combo.currentText())
+
+        rop_node.parm("notes").set(self.notes_label.text())
+
+        rop_node.parm('tpostrender').set(True)
+        rop_node.parm("postrender").set(os.path.join(base_dir,'py_scripts','create_out_info_json.py').replace("\\","/"))
+        rop_node.parm("lpostrender").set('python')
+
+    def rop_out(self):
+        dic = {
+            "FBX": "rop_fbx",
+            "ABC": "rop_alembic",
+            "RS_Proxy": "Redshift_Proxy_Output"
+        }
+
+        out_format = self.format_combo.currentText()
+        selected_node: hou.Node = hou.selectedItems()[0]
+        rop_node: hou.Node = selected_node.parent().createNode(dic[out_format], f'Rop_{selected_node.name()}')
+        parm_group: hou.ParmTemplateGroup = rop_node.parmTemplateGroup()
+        folder = hou.FolderParmTemplate("folder", "导出选项")
+
+
+        user_text = hou.StringParmTemplate("user_text", "发送给", 1)
+        user_text.setJoinWithNext(True)
+
+        takes_text = hou.StringParmTemplate("takes_text", "项目", 1)
+
+        string_parm = hou.StringParmTemplate("notes", "Notes", 1)
+        string_parm.setTags({"editor": "1"})
+
+        folder.addParmTemplate(user_text)
+        folder.addParmTemplate(takes_text)
+        folder.addParmTemplate(string_parm)
+
+        parm_group.append(folder)
+
+        rop_node.setInput(0, selected_node, 0)
+        rop_node.moveToGoodPosition(True, False)
+
+        rop_node.setParmTemplateGroup(parm_group)
+
+        self.change_pram(rop_node)
+
+    def run(self):
+        if "rop" in hou.selectedItems()[0].type().name():
+            self.change_pram(hou.selectedItems()[0])
+        else:
+            self.rop_out()
 
 
 class rop_manager(QWidget):
@@ -109,6 +177,8 @@ class rop_manager(QWidget):
         btn_addNull.clicked.connect(self.add_null)
         btn_addCache = QPushButton("缓存节点")
         btn_addCache.clicked.connect(self.add_cache)
+        btn_addOut = QPushButton("输出节点")
+        btn_addOut.clicked.connect(self.openuser_select)
 
         self.cache_list = QListWidget()
         self.cache_list.setStyleSheet("font-size:20px;}")
@@ -117,8 +187,8 @@ class rop_manager(QWidget):
         btn_open_folder.clicked.connect(self.open_cache_folder)
         btn_refresh = QPushButton("刷新")
         btn_refresh.clicked.connect(self.load_cache_list)
-        btn_debug = QPushButton("test")
-        btn_debug.clicked.connect(self.openuser_select)
+        # btn_debug = QPushButton("test")
+        # btn_debug.clicked.connect(self.openuser_select)
 
         self.version_list = QListWidget()
         self.version_list.currentItemChanged.connect(self.get_info)
@@ -130,11 +200,11 @@ class rop_manager(QWidget):
         tool_layout.addWidget(btn_addNull)
         tool_layout.addWidget(btn_addCache)
         tool_layout.addWidget(btn_changeRender)
+        tool_layout.addWidget(btn_addOut)
 
         cache_tool_layout = QVBoxLayout()
         cache_tool_layout.addWidget(btn_open_folder)
         cache_tool_layout.addWidget(btn_refresh)
-        cache_tool_layout.addWidget(btn_debug)
 
         info_layout = QVBoxLayout()
         info_layout.addWidget(self.version_list)

@@ -1,10 +1,12 @@
 import os, json,shutil, ctypes
+import re
+
 from PySide2.QtWidgets import (
     QLabel, QTabWidget, QWidget, QPushButton,
     QHBoxLayout, QVBoxLayout, QLineEdit, QListWidget,
     QComboBox, QDialog, QDialogButtonBox,
     QTextEdit, QListWidgetItem, QMessageBox, QTableView, QHeaderView,
-    QSplitter
+    QSplitter, QTreeWidget, QTreeWidgetItem
 )
 from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint, QSortFilterProxyModel, Signal
 from PySide2.QtGui import QIcon, QDrag, QStandardItemModel, QStandardItem
@@ -21,7 +23,7 @@ _DCC_ = ["Blender", "C4d", "Houdini", "Maya"]
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _format_ = ({"Blender": ".blend", "C4d": ".c4d", "Houdini": ".hip", "Maya": ".ma"})
 _list =["__IN__", "tex", "geo", "alembic", "vdb", "usd", "render", "flipbook", "metadata", "reference"]
-
+# pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
 
 class editnotesDialog(QDialog):
     def __init__(self, initial_notes):
@@ -152,10 +154,12 @@ class Opensub(QDialog):
         self.setLayout(self.layout)
 
     def add_ltem(self):
+        self.createFoloder()
         for key in self.assets:
             widget = QWidget()
             layout = QVBoxLayout(widget)
-            list = QListWidget()
+            list = DraggableListWidget()
+            list.itemDoubleClicked.connect(lambda item,lw = list:self.open_down(item,lw))
             btn_open = QPushButton("打开文件夹")
             btn_open.pressed.connect(lambda x=self.assets[key]:os.startfile(os.path.join(self.current_file,x)))
             layout.addWidget(list)
@@ -167,8 +171,32 @@ class Opensub(QDialog):
                 if  att != -1 and bool(att & 2):  ##判断是不是隐藏文件
                     pass
                 else:
-                    list.addItem(i)
+                    item = QListWidgetItem(i)
+                    dic = {
+                        'path':os.path.join(path,i)
+                    }
+                    item.setData(Qt.UserRole,dic)
+                    list.addItem(item)
+    def open_down(self,value,list):
+        data = value.data(Qt.UserRole)
+        path = data['path']
+        if os.path.isdir(path):
+            list.clear()
+            for i in os.listdir(path):
+                item = QListWidgetItem(i)
+                dic = {
+                    'path': os.path.join(path, i)
+                }
+                item.setData(Qt.UserRole, dic)
+                list.addItem(item)
 
+
+    def createFoloder(self):
+        for key in self.assets:
+            if os.path.exists(os.path.join(self.current_file,self.assets[key])):
+                pass
+            else:
+                os.makedirs(os.path.join(self.current_file,self.assets[key]))
 
 class Flipbook_Dialog(QDialog):
     def __init__(self,content):
@@ -181,18 +209,29 @@ class Flipbook_Dialog(QDialog):
         self.content_label = QLabel(self.content)
         self.list = DraggableListWidget()
         self.list.doubleClicked.connect(self.open)
+        btn_refresh = QPushButton("刷新列表")
+        btn_refresh.clicked.connect(self.add_item())
+        btn_open = QPushButton("打开拍屏文件夹")
+        btn_open.clicked.connect(lambda :os.startfile(self.flip_path))
         self.layout.addWidget(self.content_label)
         self.layout.addWidget(self.list)
+        self.layout.addWidget(btn_refresh)
+        self.layout.addWidget(btn_open)
         self.setLayout(self.layout)
         self.add_item()
     def add_item(self):
+        pattern = r'^(.*)(?:_(v\d{3}))(?:_(.*?))$'
+        self.list.clear()
         if os.path.exists(self.flip_path):
-            for i in os.listdir(self.flip_path):
+            files = sorted(os.listdir(self.flip_path), reverse=True)
+            for i in files:
                 filename = os.path.splitext(i)[0]
-                name = filename.split("_")[0]
-                time = filename.split("_")[-1]
+                group = re.match(pattern, filename)
+                name = group.group(1)
+                version = group.group(2)
+                time = group.group(3)
                 path = os.path.join(self.flip_path,i)
-                item = QListWidgetItem(f'{name}创建日期{time}')
+                item = QListWidgetItem(f'{version}  创建日期{time}')
                 content = {
                     "content": i,
                     "path": path
@@ -242,6 +281,7 @@ class Version_Table(QStandardItemModel):
                 self.dataChangedSignal.emit(index.row(),index.column(),value)
                 # 调用父类的 setData 方法以确保实际的数据更新
             return super().setData(index, value, role)
+
 
 class Work_Project(QWidget):
     def __init__(self):
@@ -347,7 +387,6 @@ class Work_Project(QWidget):
         layout.addLayout(layout_tools)
         layout.addWidget(splitter)
 
-
         main_layout.addLayout(name_layout)
         main_layout.addLayout(layout)
 
@@ -365,7 +404,6 @@ class Work_Project(QWidget):
         Global_Vars.Project = text
 
     def change_project(self):
-        # self.get_work_path(self.path_label.text())
         self.change_combo()
         self.load_projects()
 
@@ -377,8 +415,6 @@ class Work_Project(QWidget):
             for i in range(self.project_combo.count()):
                 if self.project_combo.itemText(i) == value:
                     self.project_combo.setCurrentIndex(i)
-
-
             path = Global_Vars.Project
             name = value
             self.data_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + name + "/metadata/project.json"
@@ -411,19 +447,22 @@ class Work_Project(QWidget):
                 content_name = project['content']
                 version = project['version']
                 dcc = project['dcc']
+                path = project['path']
 
                 if content_name not in projects_info or projects_info[content_name]['version'] < version:
                     projects_info[content_name] = {
                         'version': version,
                         'project': project,
-                        'dcc': dcc
+                        'dcc': dcc,
+                        'path':path
                     }
                 else:
                     QMessageBox.warning(self, "警告", "工程已经存在")
-
-
             for content_name, info in projects_info.items():
-                item_text = f"{content_name} v{info['version']}"
+                path = info['path']
+                modify_time = os.path.getmtime(path)
+                mtime = datetime.fromtimestamp(int(modify_time)).strftime('%m%d')
+                item_text = f"{mtime} {content_name} v{info['version']}"
                 item = QListWidgetItem(item_text)
                 item.setData(Qt.ItemDataRole.UserRole, info['project'])
                 item.setIcon(QIcon(os.path.join(base_dir, "../icon", info["dcc"])))
@@ -481,35 +520,38 @@ class Work_Project(QWidget):
 
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
         self.data_file = self.current_file + "/metadata/project.json"
-        with open(self.data_file, 'r+', encoding='utf-8') as file:
-            projects = json.load(file)
-            latest_project = None
+        if QMessageBox.question(self, "升级工程", "请确实使用外部升级\n确认保存当前工程了") == QMessageBox.StandardButton.Yes:
+            with open(self.data_file, 'r+', encoding='utf-8') as file:
+                projects = json.load(file)
+                latest_project = None
 
-            for project in projects:
-                if project['content'] == content_name and (
-                        latest_project is None or project['version'] > latest_project['version']):
-                    latest_project = project
+                for project in projects:
+                    if project['content'] == content_name and (
+                            latest_project is None or project['version'] > latest_project['version']):
+                        latest_project = project
 
-            if latest_project:
-                new_version = latest_project['version'] + 1
-                current_notes = latest_project['notes']
-                dialog = editnotesDialog(current_notes)
-                old_path = latest_project['path']
-                new_name = content_name + "_v" + str(new_version).zfill(3) + _format_[latest_project['dcc']]
-                if dialog.exec_() == QDialog.Accepted:
-                    shutil.copy(old_path, self.current_file + "/" + new_name)
-                    new_notes = dialog.notes_edit.toPlainText().strip()
-                    new_project = {
-                        'content': content_name,
-                        'version': new_version,
-                        'user': Global_Vars.User,
-                        'dcc': latest_project['dcc'],
-                        'path': self.current_file + "/" + new_name,
-                        'notes': new_notes
-                    }
-                    projects.append(new_project)
-                    file.seek(0)
-                    json.dump(projects, file, ensure_ascii=False, indent=4)
+                if latest_project:
+                    new_version = latest_project['version'] + 1
+                    current_notes = latest_project['notes']
+                    dialog = editnotesDialog(current_notes)
+                    old_path = latest_project['path']
+                    new_name = content_name + "_v" + str(new_version).zfill(3) + _format_[latest_project['dcc']]
+                    if dialog.exec_() == QDialog.Accepted:
+                        shutil.copy(old_path, self.current_file + "/" + new_name)
+                        new_notes = dialog.notes_edit.toPlainText().strip()
+                        new_project = {
+                            'content': content_name,
+                            'version': new_version,
+                            'user': Global_Vars.User,
+                            'dcc': latest_project['dcc'],
+                            'path': self.current_file + "/" + new_name,
+                            'notes': new_notes
+                        }
+                        projects.append(new_project)
+                        file.seek(0)
+                        json.dump(projects, file, ensure_ascii=False, indent=4)
+        else:
+            QMessageBox.information(self, "提示", "已经取消升级!")
 
         self.load_projects()
 
@@ -563,30 +605,35 @@ class Work_Project(QWidget):
         self.version_model.removeRows(0, self.version_model.rowCount())
         selected_item = self.list_project.currentItem()
         if selected_item:
+            data = selected_item.data(Qt.UserRole)
+        else:
+            data = None
+        if selected_item:
             item_text = selected_item.text()
-            content_name = item_text.split(' ')[0]
+            # content_name = item_text.split(' ')[0]
+            content_name = data['content']
 
             self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
             self.data_file = self.current_file + "/metadata/project.json"
-            with open(self.data_file, 'r', encoding='utf-8') as file:
-                projects = json.load(file)
+            if os.path.exists(self.data_file):
+                with open(self.data_file, 'r', encoding='utf-8') as file:
+                    projects = json.load(file)
 
-            self.version_model.removeRows(0,self.version_model.rowCount())
-            for project in projects:
-                if project["content"] == content_name:
-                    modify_time = os.path.getmtime(project["path"])
-                    mtime = datetime.fromtimestamp(int(modify_time))
-                    # item = QListWidgetItem(f"版本：{str(project['version']).zfill(3)}  {project['notes']} 最后修改时间：{mtime}")
-                    row_count = self.version_model.rowCount()
-                    self.version_model.insertRow(row_count)
-                    item_version = QStandardItem(str(project['version']).zfill(3))
-                    item_modify = QStandardItem(str(mtime))
-                    item_des = QStandardItem(project["notes"])
+                self.version_model.removeRows(0,self.version_model.rowCount())
+                for project in projects:
+                    if project["content"] == content_name:
+                        modify_time = os.path.getmtime(project["path"])
+                        mtime = datetime.fromtimestamp(int(modify_time))
+                        row_count = self.version_model.rowCount()
+                        self.version_model.insertRow(row_count)
+                        item_version = QStandardItem(str(project['version']).zfill(3))
+                        item_modify = QStandardItem(str(mtime))
+                        item_des = QStandardItem(project["notes"])
 
-                    item_version.setData(project,Qt.ItemDataRole.UserRole)
-                    self.version_model.setItem(row_count, 0, item_version)
-                    self.version_model.setItem(row_count, 1, item_modify)
-                    self.version_model.setItem(row_count, 2, item_des)
+                        item_version.setData(project,Qt.ItemDataRole.UserRole)
+                        self.version_model.setItem(row_count, 0, item_version)
+                        self.version_model.setItem(row_count, 1, item_modify)
+                        self.version_model.setItem(row_count, 2, item_des)
 
     def edit_version_note(self,row,colume,new_text):
         item = self.version_model.item(row,0).data(Qt.UserRole)

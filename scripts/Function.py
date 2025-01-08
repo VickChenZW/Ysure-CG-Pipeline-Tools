@@ -151,22 +151,40 @@ def create_work_Folder(path, user, name, list):
             os.makedirs(project_path + "/" +l)
 
 
-def ini(root, project, user,version):
+def ini(root, project, user):
     config = configparser.ConfigParser()
 
     config["Settings"] = {
         "current_Root": root,
         "current_Project": project,
-        "current_User": user,
+        "current_User": user
     }
-    config["Version"] = {
-        "version": version,
-        "update_data": datetime.now().strftime()
-    }
+    # config["Version"] = {
+    #     "version": version,
+    #     "update_data": datetime.now().strftime('%Y-%m-%d %H-%M-%S'),
+    #     "update_notes": notes
+    # }
     if not os.path.exists(os.path.join(base_dir, "../config")):
         os.makedirs(os.path.join(base_dir, "../config"))
 
     path = os.path.join(base_dir, "../config", "config.ini")
+    with open(path,"w") as f:
+        config.write(f)
+    f.close()
+
+
+def version_ini(version, notes=''):
+    config = configparser.ConfigParser()
+
+    config["Version"] = {
+        "version": version,
+        "update_data": datetime.now().strftime('%Y-%m-%d %H-%M-%S'),
+        "update_notes": notes
+    }
+    if not os.path.exists(os.path.join(base_dir, "../config")):
+        os.makedirs(os.path.join(base_dir, "../config"))
+
+    path = os.path.join(base_dir, "../config", "version.ini")
     with open(path,"w") as f:
         config.write(f)
     f.close()
@@ -181,6 +199,7 @@ def get_ini():
     root = config.get("Settings", "current_Root")
     project = config.get("Settings", "current_Project")
     user = config.get("Settings", "current_User")
+
     return root, project, user
 
 

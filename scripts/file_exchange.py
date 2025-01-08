@@ -106,6 +106,21 @@ class File_Exchange(QWidget):
                 f.truncate()
                 json.dump(new_info,f,ensure_ascii=False, indent=4)
             f.close()
+        new_info = []
+        if os.path.exists(os.path.join(path, "metadata", "proj.json")):
+            with open(os.path.join(path, "metadata", "proj.json"), "r+", encoding='utf-8') as f:
+                files = json.load(f)
+                for file in files:
+                    if file:
+                        item = QListWidgetItem(file['file_name'])
+                        file.update({"path": file['make']})
+                        item.setData(Qt.UserRole, file)
+                        self.list_In.addItem(item)
+                        new_info.append(file)
+                f.seek(0)
+                f.truncate()
+                json.dump(new_info, f, ensure_ascii=False, indent=4)
+            f.close()
 
         else:
             os.makedirs(os.path.join(path,"metadata"))
