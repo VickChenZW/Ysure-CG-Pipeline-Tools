@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 bl_info = {
     "name": "YsureTool",
     "author": "Vick",
@@ -16,6 +18,9 @@ import bpy
 import os
 import json
 import datetime
+import re
+from datetime import datetime
+
 from pathlib import Path
 
 # 固定的用户列表
@@ -23,11 +28,14 @@ USERS = ["Neo", "Vick", "YL", "Jie", "K", "O"]
 
 # 固定的路径
 # BASE_PATH = r"Y:\02.CG_Project\2024.12.09_EssilorPipeline\2.Project"
-FILEPATH = bpy.data.filepath
-BASE_PATH = os.path.dirname(os.path.dirname(os.path.dirname(FILEPATH)))
+# FILEPATH = bpy.data.filepath
+# BASE_PATH = os.path.dirname(os.path.dirname(os.path.dirname(FILEPATH)))
 
 
 def export(name,path,in_path,des,user):
+    file_path = bpy.data.filepath
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
+
     dic = {
         'file_name': "",
         'date': "",
@@ -42,9 +50,9 @@ def export(name,path,in_path,des,user):
     dic = {
         'file_name': name,
         'date': str(datetime.datetime.now()),
-        'from': os.path.dirname(os.path.dirname(FILEPATH)).split("\\")[-1],
+        'from': os.path.dirname(os.path.dirname(file_path)).split("\\")[-1],
         'to': user,
-        'make': FILEPATH.replace('\\','/'),
+        'make': file_path.replace('\\','/'),
         'describe': des,
     }
 
@@ -59,9 +67,9 @@ def export(name,path,in_path,des,user):
             updated_projects = []
             for p in project:
                 if p["file_name"] == name:
-                    p["date"]=str(datetime.datetime.now())
-                    p["make"]=FILEPATH.replace('\\','/')
-                    p["describe"]=des
+                    p["date"] = str(datetime.datetime.now())
+                    p["make"] = file_path.replace('\\','/')
+                    p["describe"] = des
                 updated_projects.append(p)
             f.seek(0)
             json.dump(updated_projects, f, ensure_ascii=False, indent=4)
@@ -71,8 +79,6 @@ def export(name,path,in_path,des,user):
             json.dump(project, f, ensure_ascii=False, indent=4)
     f.close()
     return exist
-    #
-    # print(path)
 
 def update(current_file,user,content_name,des):
     # current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
@@ -105,66 +111,29 @@ def update(current_file,user,content_name,des):
             projects.append(new_project)
             file.seek(0)
             json.dump(projects, file, ensure_ascii=False, indent=4)
-def update_project_names(self, context):
+
+def update_project_names(self,context):
+    file_path = bpy.data.filepath
+    base_path = os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
     props = context.scene.export_properties
     user = props.users
-    user_folder = os.path.join(BASE_PATH, user)
+    user_folder = os.path.join(base_path, user)
 
     if os.path.exists(user_folder):
         project_names = os.listdir(user_folder)
     else:
         project_names = []
-        print(f"User folder does not exist: {user_folder}")  # 调试打印
 
+    global enum_items
     enum_items = []
     count = 0
-    for n in project_names:
-        identifier = n
-        name = n
-        description = ""
+    for n in os.listdir(user_folder):
         number = count
-        enum_items.append((identifier,name,description,number))
+        enum_items.append((n,n,""))
         count += 1
-    return enum_items
+    return (enum_items)
 
 
-
-# 定义属性组用于存储下拉框选项
-class ExportProperties(bpy.types.PropertyGroup):
-
-
-
-    users: bpy.props.EnumProperty(
-        name="用户",
-        items=[(user, user, "") for user in USERS],
-        default=USERS[1],
-        update=update_project_names
-    )
-
-    project_names_enum: bpy.props.EnumProperty(
-        name="项目名字",
-        items=update_project_names,
-        default=None,
-        # update=lambda self, context: None  # 空更新函数，防止默认值问题
-    )
-
-    file_formats: bpy.props.EnumProperty(
-        name="三维格式",
-        items=[
-            ('FBX', "FBX", ""),
-            ('OBJ', "OBJ", ""),
-            ('GLTF', "glTF 2.0", ""),
-        ],
-        default='FBX'
-    )
-
-    output_directory: bpy.props.StringProperty(
-        name="输出目录",
-        subtype='DIR_PATH',
-        default=""
-    )
-
-# 定义操作符用于导出物体
 class OBJECT_OT_export_selected(bpy.types.Operator):
     bl_idname = "object.export_selected"
     bl_label = "导出选中物体"
@@ -183,13 +152,17 @@ class OBJECT_OT_export_selected(bpy.types.Operator):
         description="请输入描述信息"
     )
 
+    def __init__(self):
+        self.file_path = bpy.data.filepath
+        self.base_path = os.path.dirname(os.path.dirname(os.path.dirname(self.file_path)))
+
     def invoke(self, context, event):
         # 设置文件名输入框的默认值为当前选中物体的名字
         if context.object:
             self.file_name = context.object.name
 
         # 弹出一个对话框，用户可以在其中输入文件名和描述信息
-        return context.window_manager.invoke_props_dialog(self,width=400)
+        return context.window_manager.invoke_props_dialog(self, width=400)
 
     def draw(self, context):
         layout = self.layout
@@ -211,8 +184,8 @@ class OBJECT_OT_export_selected(bpy.types.Operator):
         user = props.users
         project_name = props.project_names_enum
         file_format = props.file_formats
-        output_dir = os.path.join(BASE_PATH, user, project_name,'__IN__')
-        info_dir = os.path.join(output_dir,"metadata",'in.json')
+        output_dir = os.path.join(self.base_path, user, project_name,'__IN__')
+        info_dir = os.path.join(output_dir, "metadata", 'in.json')
         self.report({'INFO'},output_dir+file_format)
         # 确保输出目录存在
         if not os.path.exists(output_dir):
@@ -233,7 +206,6 @@ class OBJECT_OT_export_selected(bpy.types.Operator):
 
             user_des = self.description.strip()
             exist = export(filename,filepath,info_dir,user_des,user)
-            # self.report({'INFO'},filepath)
 
 
             # 导出物体
@@ -250,6 +222,52 @@ class OBJECT_OT_export_selected(bpy.types.Operator):
 
         return {'FINISHED'}
 
+class ChangeRenderPath(bpy.types.Operator):
+    bl_idname = "render.change_render_path"
+    bl_label = "修改渲染目录"
+    bl_options = {'REGISTER'}
+
+    render_name: bpy.props.StringProperty(
+        name="渲染名",
+        default="",
+        description="请输入描述信息"
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=400)
+
+    def draw(self, context):
+            layout = self.layout
+            # 文件名输入框
+            box = layout.box()
+            box.label(text="渲染名")
+            box.prop(self, "render_name", text="")
+
+    def execute(self,context):
+        file_path = bpy.data.filepath
+        render_path = os.path.join(os.path.dirname(file_path), 'render')
+        _pattern = r"^(.*?)(?:_v\d{3}\.\w+)$"
+        render_name = self.render_name.strip()
+        list = os.listdir(render_path)
+        project_name = os.path.basename(file_path)
+        project_name_without_pre = "".join(project_name.split('.')[0:-1])
+        content_name = re.match(_pattern, project_name).group(1)
+        version = 1
+        for i in list:
+            if not "metadata" in i:
+                parts = i.split("_")[1:-2]
+                name_part = "_".join(parts)
+                # print(name_part)
+                ver_part = int(i.split("_")[-1].split('v')[-1])
+                if name_part == content_name and ver_part >= version:
+                        version = ver_part + 1
+        ver_str = str(version).zfill(3)
+        path = os.path.join(render_path,f'{datetime.now().strftime("%Y%m%d")}_{project_name_without_pre}_{ver_str}',render_name+"_")
+        bpy.context.scene.render.filepath = path
+
+        return {'FINISHED'}
+
+
 class OBJECT_OT_update_version_operator(bpy.types.Operator):
     bl_idname = "object.update_version"
     bl_label = "更新版本"
@@ -260,6 +278,10 @@ class OBJECT_OT_update_version_operator(bpy.types.Operator):
         default="",
         description="请输入版本更新的描述信息",
     )
+
+    def __init__(self):
+        self.file_path = bpy.data.filepath
+        self.base_path = os.path.dirname(os.path.dirname(os.path.dirname(self.file_path)))
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=400)
@@ -274,30 +296,62 @@ class OBJECT_OT_update_version_operator(bpy.types.Operator):
         props = context.scene.export_properties
         # user = props.users
         des = self.description.strip()
-        user = os.path.dirname(os.path.dirname(FILEPATH)).split("\\")[-1]
+        user = os.path.dirname(os.path.dirname(self.file_path)).split("\\")[-1]
         project_name = props.project_names_enum
-        output_dir = os.path.join(BASE_PATH, user, project_name, '__IN__')
+        output_dir = os.path.join(self.base_path, user, project_name, '__IN__')
         info_dir = os.path.join(output_dir, "metadata", 'in.json')
-        old_name = FILEPATH.split("\\")[-1].split(".")[0]
+        old_name = self.file_path.split("\\")[-1].split(".")[0]
         old_version = int(old_name.split("_")[-1].split("v")[-1])
         new_version = old_version+1
-        work_path = os.path.dirname(FILEPATH).replace("\\","/")
+        work_path = os.path.dirname(self.file_path).replace("\\","/")
         name = old_name.split("_")[0]
         new_name = old_name.split("v")[0]+"v"+str(new_version).zfill(3)+".blend"
 
-        update(work_path,user,name,des)
-        # 获取当前文件名
-        # bpy.ops.wm.save_as_mainfile(file)
+        update(work_path, user, name, des)
+
         bpy.ops.wm.save_as_mainfile(filepath=work_path + "/" + new_name, copy=False)
         self.report({'INFO'},'更新成功')
         return {'FINISHED'}
-# 定义面板
-class OBJECT_PT_export_panel(bpy.types.Panel):
+# 定义属性组用于存储下拉框选项
+class ExportProperties(bpy.types.PropertyGroup):
+
+    users: bpy.props.EnumProperty(
+        name="用户",
+        items=[(user, user, "") for user in USERS],
+        default=USERS[1],
+        update=update_project_names,
+    )
+
+    project_names_enum: bpy.props.EnumProperty(
+        name="项目名字",
+        items=update_project_names,
+        default=None,
+    )
+
+    file_formats: bpy.props.EnumProperty(
+        name="三维格式",
+        items=[
+            ('FBX', "FBX", ""),
+            ('OBJ', "OBJ", ""),
+            ('GLTF', "glTF 2.0", ""),
+        ],
+        default='FBX'
+    )
+
+
+    output_directory: bpy.props.StringProperty(
+        name="输出目录",
+        subtype='DIR_PATH',
+        default=""
+    )
+
+class Main(bpy.types.Panel):
     bl_label = "Ysure流程工具"
-    bl_idname = "OBJECT_PT_export_panel"
+    bl_idname = "OBJECT_PT_YsuerPipeline_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'Ysure流程工具'
+
 
     def draw(self, context):
         layout = self.layout
@@ -307,15 +361,10 @@ class OBJECT_PT_export_panel(bpy.types.Panel):
         layout.operator("object.update_version", text="更新版本")
         layout.label(text="导出选中物体")
         layout.prop(props, "users")
-
-        # 动态显示项目名字
-
-        row = layout.row()
-        row.prop(props, "project_names_enum")  # 直接使用 EnumProperty
-
+        layout.prop(props, "project_names_enum")  # 直接使用 EnumProperty
         layout.prop(props, "file_formats")
-
         layout.operator("object.export_selected", text="导出")
+        layout.operator("render.change_render_path", text="更改渲染目录")
 
 
 # 注册类
@@ -323,7 +372,8 @@ classes = (
     ExportProperties,
     OBJECT_OT_export_selected,
     OBJECT_OT_update_version_operator,
-    OBJECT_PT_export_panel
+    ChangeRenderPath,
+    Main
 )
 
 

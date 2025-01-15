@@ -18,6 +18,7 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 
 pattern_name = r"^(.*?)(?:_v\d{3}\.\w+)$"
 pattern_version = r'(?<=_v)\d+(?![\d_]*\b_v)'
+pattern_flipbook = r'^(.*)_v(\d{3})_(.*?)$'
 
 class project_manage(QWidget):
     def __init__(self):
@@ -71,6 +72,9 @@ class project_manage(QWidget):
 
         self.modify_label = QLineEdit()
 
+        self.flipbook_list = QListWidget()
+        self.flipbook_list.setMinimumHeight(400)
+
         path_layout = QHBoxLayout()
         tool_layout = QVBoxLayout()
         list_layout = QHBoxLayout()
@@ -86,10 +90,11 @@ class project_manage(QWidget):
         tool_layout.addWidget(load_button)
         tool_layout.addWidget(new_button)
         # tool_layout.addWidget(update_button)
-        tool_layout.addStretch()
+        # tool_layout.addStretch()
 
         info_layout.addWidget(self.modify_label)
         info_layout.addWidget(self.notes_label)
+        info_layout.addWidget(self.flipbook_list)
         info_layout.addStretch()
 
 
@@ -104,8 +109,21 @@ class project_manage(QWidget):
 
         # self.change_combo()
 
-
-
+    def change_combo(self):
+        self.path_combo.clear()
+        self.change_var()
+        data_file = self.var_content['data_path']
+        content_name = re.match(pattern_name, hou.hipFile.basename()).group(1)
+        if os.path.exists(data_file):
+            with open(data_file, 'r', encoding='utf-8') as file:
+                projects = json.load(file)
+                unique_contents = set(item['content'] for item in projects if 'content' in item and item.get('dcc') == 'Houdini')
+                index = 0
+                for content in unique_contents:
+                    self.path_combo.addItem(content)
+                    if content == content_name:
+                        self.path_combo.setCurrentIndex(index)
+                    index += 1
 
     def change_var(self):
         path = hou.hipFile.path()
@@ -125,7 +143,7 @@ class project_manage(QWidget):
 
     def load_projects(self):
         self.change_var()
-        project_name = self.var_content['content_name']
+        project_name = self.path_combo.currentText()
         self.list_project.clear()
         data_file = self.var_content['data_path']
         if os.path.exists(data_file):
@@ -167,6 +185,26 @@ class project_manage(QWidget):
             mtime = datetime.fromtimestamp(int(modify_time))
             self.modify_label.setText(str(mtime))
 
+            self.flipbook_list.clear()
+            content_name = data['content']
+            version = data['version']
+            flipbook_path = os.path.join(os.path.dirname(data['path']), 'flipbook', content_name)
+            if os.path.exists(flipbook_path):
+                files = sorted((f for f in os.listdir(flipbook_path)),
+                               key=lambda f: os.path.getmtime(os.path.join(flipbook_path, f)), reverse=True)
+                for i in files:
+                    match = re.match(pattern_flipbook, i)
+                    flip_ver = match.group(2)
+                    if int(flip_ver) == int(version):
+                        ftime = match.group(3).split('.')[0]
+                        item = QListWidgetItem(ftime)
+                        dic = {
+                            'path': os.path.join(flipbook_path,i)
+                        }
+                        item.setData(Qt.UserRole, dic)
+                        self.flipbook_list.addItem(item)
+            self.flipbook_list.itemDoubleClicked.connect(lambda value:os.startfile(value.data(Qt.UserRole)['path']))
+
     def change_notes(self):
         value = self.notes_label.text()
         data_file = self.var_content['data_path']
@@ -187,55 +225,43 @@ class project_manage(QWidget):
     def update_project(self):
         content_name = self.var_content['content_name']
         data_file = self.var_content['data_path']
-        with open(data_file, 'r+', encoding='utf-8') as file:
-            projects = json.load(file)
-            latest_project = None
+        if hou.ui.displayMessage("确认升级吗?", buttons=("确认", "取消")) == 0:
+            with open(data_file, 'r+', encoding='utf-8') as file:
+                projects = json.load(file)
+                latest_project = None
 
-            for project in projects:
-                if project['content'] == content_name and (
-                        latest_project is None or project['version'] > latest_project['version']):
-                    latest_project = project
+                for project in projects:
+                    if project['content'] == content_name and (
+                            latest_project is None or project['version'] > latest_project['version']):
+                        latest_project = project
 
-            if latest_project:
-                new_version = latest_project['version'] + 1
-                current_notes = latest_project['notes']
-                new_notes = hou.ui.readInput("输入新的描述",buttons=("确定","取消"),title="输入新的描述", initial_contents=current_notes)
-                new_path = os.path.join(os.path.dirname(self.var_content['project_path']),f'{self.var_content["content_name"]}_v{str(new_version).zfill(3)}.hip').replace("\\", "/")
-                if new_notes[0] ==0:
-                    new_project = {
-                        'content': content_name,
-                        'version': new_version,
-                        'user': latest_project['user'],
-                        'dcc': latest_project['dcc'],
-                        'path': new_path,
-                        'notes': new_notes[1]
-                    }
-                    projects.append(new_project)
-                    file.seek(0)
-                    json.dump(projects, file, ensure_ascii=False, indent=4)
-                    try:
-                        hou.hipFile.save(new_path)
-                        hou.ui.displayMessage("更新成功")
-                    except hou.OperationFailed as e:
-                        hou.ui.displayMessage(e)
+                if latest_project:
+                    new_version = latest_project['version'] + 1
+                    current_notes = latest_project['notes']
+                    new_notes = hou.ui.readInput("输入新的描述",buttons=("确定","取消"),title="输入新的描述", initial_contents=current_notes)
+                    new_path = os.path.join(os.path.dirname(self.var_content['project_path']),f'{self.var_content["content_name"]}_v{str(new_version).zfill(3)}.hip').replace("\\", "/")
+                    if new_notes[0] ==0:
+                        new_project = {
+                            'content': content_name,
+                            'version': new_version,
+                            'user': latest_project['user'],
+                            'dcc': latest_project['dcc'],
+                            'path': new_path,
+                            'notes': new_notes[1]
+                        }
+                        projects.append(new_project)
+                        file.seek(0)
+                        json.dump(projects, file, ensure_ascii=False, indent=4)
+                        try:
+                            hou.hipFile.save(new_path)
+                            hou.ui.displayMessage("更新成功")
+                        except hou.OperationFailed as e:
+                            hou.ui.displayMessage(e)
 
         self.load_projects()
 
-    def change_combo(self):
-        self.path_combo.clear()
-        self.change_var()
-        data_file = self.var_content['data_path']
-        if os.path.exists(data_file):
-            with open(data_file, 'r', encoding='utf-8') as file:
-                projects = json.load(file)
-                unique_contents = set(item['content'] for item in projects if 'content' in item and item.get('dcc') == 'Houdini')
-                for content in unique_contents:
-                    self.path_combo.addItem(content)
-
     def open_folder(self):
         os.startfile(os.path.dirname(hou.hipFile.path()))
-
-
 
     def debug(self):
         value = hou.hipFile.path()

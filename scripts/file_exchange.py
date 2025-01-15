@@ -123,8 +123,9 @@ class File_Exchange(QWidget):
             f.close()
 
         else:
-            os.makedirs(os.path.join(path,"metadata"))
-            with open(os.path.join(path,"metadata","in.json"),"w",encoding='utf-8') as f:
+            if not os.path.exists(os.path.join(path,"metadata")):
+                os.makedirs(os.path.join(path,"metadata"))
+            with open(os.path.join(path,"metadata","proj.json"),"w",encoding='utf-8') as f:
                 json.dump([],f,ensure_ascii=False,indent=4)
 
     def changetext(self):

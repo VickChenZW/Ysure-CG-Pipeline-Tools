@@ -1,4 +1,6 @@
-import hou
+import shutil
+
+import hou, toolutils, subprocess
 
 import os, json, re
 
@@ -40,133 +42,248 @@ def get_date():
     date = year + month + day
     return date
 
-class select_user(QDialog):
-    def __init__(self,parent):
-        super(select_user, self).__init__(parent)
+# class select_user(QDialog):
+#     def __init__(self,parent):
+#         super(select_user, self).__init__(parent)
+#
+#         self._user_path = ""
+#
+#         self.layout = QVBoxLayout()
+#         self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "Y_black.ico")))
+#
+#         label = QLabel("输出节点生成器")
+#         label.setMinimumHeight(30)
+#         self.layout.addWidget(label)
+#
+#         self.format_combo = QComboBox()
+#         [self.format_combo.addItem(i) for i in ['FBX', 'ABC', 'RS_Proxy']]
+#         self.layout.addWidget(self.format_combo)
+#
+#         layout_user = QHBoxLayout()
+#         self.user_combo = QComboBox()
+#         self.task_combo = QComboBox()
+#         [layout_user.addWidget(i) for i in [self.user_combo, self.task_combo]]
+#         self.layout.addLayout(layout_user)
+#
+#         self.notes_label = QLineEdit('输入备注')
+#         self.notes_label.setMinimumHeight(60)
+#         self.layout.addWidget(self.notes_label)
+#
+#         btn_Confirm = QPushButton("创建输出节点")
+#         btn_Confirm.clicked.connect(self.run)
+#         self.layout.addWidget(btn_Confirm)
+#
+#         self.layout.addStretch()
+#
+#         self.change_user_combo()
+#         self.setWindowTitle("选择导出对象")
+#         self.setFixedSize(QSize(300,400))
+#
+#
+#         self.setLayout(self.layout)
+#
+#     def get_user_path(self):
+#         self._user_path = hou.hipFile.path()
+#         for _ in range(3):
+#             self._user_path = os.path.dirname(self._user_path)
+#
+#     def change_user_combo(self):
+#         self.user_combo.clear()
+#         self.get_user_path()
+#         for i in os.listdir(self._user_path):
+#             self.user_combo.addItem(i)
+#         self.user_combo.currentIndexChanged.connect(self.get_task_list)
+#
+#
+#     def get_task_list(self):
+#         self.task_combo.clear()
+#         for i in os.listdir(os.path.join(self._user_path,self.user_combo.currentText())):
+#             self.task_combo.addItem(i)
+#
+#     def get_path(self):
+#         root_path = hou.hipFile.path()
+#         for _ in range(3):
+#             root_path = os.path.dirname(root_path)
+#         des_path = os.path.join(root_path,self.user_combo.currentText(),self.task_combo.currentText(),'__IN__')
+#
+#         return des_path
+#
+#     def change_pram(self,rop_node):
+#         rop_node.parm('sopoutput').set(f'{self.get_path()}/$OS.fbx'.replace('\\','/'))
+#
+#
+#         rop_node.parm("user_text").disable(True)
+#         rop_node.parm("user_text").set(self.user_combo.currentText())
+#
+#         rop_node.parm("takes_text").disable(True)
+#         rop_node.parm("takes_text").set(self.task_combo.currentText())
+#
+#         rop_node.parm("notes").set(self.notes_label.text())
+#
+#         rop_node.parm('tpostrender').set(True)
+#         rop_node.parm("postrender").set(os.path.join(base_dir,'py_scripts','create_out_info_json.py').replace("\\","/"))
+#         rop_node.parm("lpostrender").set('python')
+#
+#     def rop_out(self):
+#         dic = {
+#             "FBX": "rop_fbx",
+#             "ABC": "rop_alembic",
+#             "RS_Proxy": "Redshift_Proxy_Output"
+#         }
+#
+#         out_format = self.format_combo.currentText()
+#         selected_node: hou.Node = hou.selectedItems()[0]
+#         rop_node: hou.Node = selected_node.parent().createNode(dic[out_format], f'Rop_{selected_node.name()}')
+#         parm_group: hou.ParmTemplateGroup = rop_node.parmTemplateGroup()
+#         folder = hou.FolderParmTemplate("folder", "导出选项")
+#
+#
+#         user_text = hou.StringParmTemplate("user_text", "发送给", 1)
+#         user_text.setJoinWithNext(True)
+#
+#         takes_text = hou.StringParmTemplate("takes_text", "项目", 1)
+#
+#         string_parm = hou.StringParmTemplate("notes", "Notes", 1)
+#         string_parm.setTags({"editor": "1"})
+#
+#         folder.addParmTemplate(user_text)
+#         folder.addParmTemplate(takes_text)
+#         folder.addParmTemplate(string_parm)
+#
+#         parm_group.append(folder)
+#
+#         rop_node.setInput(0, selected_node, 0)
+#         rop_node.moveToGoodPosition(True, False)
+#
+#         rop_node.setParmTemplateGroup(parm_group)
+#
+#         self.change_pram(rop_node)
+#
+#     def run(self):
+#         if "rop" in hou.selectedItems()[0].type().name():
+#             self.change_pram(hou.selectedItems()[0])
+#         else:
+#             self.rop_out()
 
-        self._user_path = ""
+class Flipbook(QDialog):
+
+    def __init__(self,parent):
+        super(Flipbook,self).__init__(parent)
+
+        self.project_name = re.match(pattern_name,hou.hipFile.basename()).group(1)
+        # print(self.project_name)
+        self.start = 0
+        self.end = 0
+        self.mp4_output_path = ""
+        self.jpg_output_path = ""
+
+
+        self.setWindowTitle("Ysure拍屏工具")
 
         self.layout = QVBoxLayout()
-        self.setWindowIcon(QIcon(os.path.join(base_dir, "icon", "Y_black.ico")))
+        frame_layout = QHBoxLayout()
 
-        label = QLabel("输出节点生成器")
-        label.setMinimumHeight(30)
-        self.layout.addWidget(label)
+        self.start_text = QLineEdit(str(int(hou.playbar.frameRange()[0])))
+        self.end_text = QLineEdit(str(int(hou.playbar.frameRange()[1])))
+        frame_layout.addWidget(self.start_text)
+        frame_layout.addWidget(self.end_text)
+        self.layout.addLayout(frame_layout)
 
-        self.format_combo = QComboBox()
-        [self.format_combo.addItem(i) for i in ['FBX', 'ABC', 'RS_Proxy']]
-        self.layout.addWidget(self.format_combo)
-
-        layout_user = QHBoxLayout()
-        self.user_combo = QComboBox()
-        self.task_combo = QComboBox()
-        [layout_user.addWidget(i) for i in [self.user_combo, self.task_combo]]
-        self.layout.addLayout(layout_user)
-
-        self.notes_label = QLineEdit('输入备注')
-        self.notes_label.setMinimumHeight(60)
-        self.layout.addWidget(self.notes_label)
-
-        btn_Confirm = QPushButton("创建输出节点")
-        btn_Confirm.clicked.connect(self.run)
-        self.layout.addWidget(btn_Confirm)
-
-        self.layout.addStretch()
-
-        self.change_user_combo()
-        self.setWindowTitle("选择导出对象")
-        self.setFixedSize(QSize(300,400))
-
+        btn_run = QPushButton("开始拍屏")
+        btn_run.clicked.connect(self.run)
+        self.layout.addWidget(btn_run)
 
         self.setLayout(self.layout)
-"/"
-    def get_user_path(self):
-        self._user_path = hou.hipFile.path()
-        for _ in range(3):
-            self._user_path = os.path.dirname(self._user_path)
 
-    def change_user_combo(self):
-        self.user_combo.clear()
-        self.get_user_path()
-        for i in os.listdir(self._user_path):
-            self.user_combo.addItem(i)
-        self.user_combo.currentIndexChanged.connect(self.get_task_list)
+    def out_flip(self):
+        # Parent dir of folder containing the hip_file_path
+        flip_path = os.path.join(os.path.dirname(hou.hipFile.path()), "flipbook",self.project_name)
+        if not os.path.exists(flip_path):
+            print("创建flipbook文件夹")
+            os.makedirs(flip_path)
 
 
-    def get_task_list(self):
-        self.task_combo.clear()
-        for i in os.listdir(os.path.join(self._user_path,self.user_combo.currentText())):
-            self.task_combo.addItem(i)
+        os.makedirs(os.path.join(flip_path, 'cache'))
 
-    def get_path(self):
-        root_path = hou.hipFile.path()
-        for _ in range(3):
-            root_path = os.path.dirname(root_path)
-        des_path = os.path.join(root_path,self.user_combo.currentText(),self.task_combo.currentText(),'__IN__')
+        self.mp4_output_path = os.path.join(flip_path,hou.getenv('HIPNAME') + "_" + datetime.now().strftime('%Y-%m-%d %H-%M-%S')+'.mp4')
+        self.jpg_out_path = os.path.join(flip_path, 'cache', 'cache.$F4.jpg')
+        flbk_settings = toolutils.sceneViewer().flipbookSettings().stash()
 
-        return des_path
+        # Set the output path
+        flbk_settings.output(self.jpg_out_path)
 
-    def change_pram(self,rop_node):
-        rop_node.parm('sopoutput').set(f'{self.get_path()}/$OS.fbx'.replace('\\','/'))
+        flbk_settings.outputToMPlay(1)
 
 
-        rop_node.parm("user_text").disable(True)
-        rop_node.parm("user_text").set(self.user_combo.currentText())
-
-        rop_node.parm("takes_text").disable(True)
-        rop_node.parm("takes_text").set(self.task_combo.currentText())
-
-        rop_node.parm("notes").set(self.notes_label.text())
-
-        rop_node.parm('tpostrender').set(True)
-        rop_node.parm("postrender").set(os.path.join(base_dir,'py_scripts','create_out_info_json.py').replace("\\","/"))
-        rop_node.parm("lpostrender").set('python')
-
-    def rop_out(self):
-        dic = {
-            "FBX": "rop_fbx",
-            "ABC": "rop_alembic",
-            "RS_Proxy": "Redshift_Proxy_Output"
-        }
-
-        out_format = self.format_combo.currentText()
-        selected_node: hou.Node = hou.selectedItems()[0]
-        rop_node: hou.Node = selected_node.parent().createNode(dic[out_format], f'Rop_{selected_node.name()}')
-        parm_group: hou.ParmTemplateGroup = rop_node.parmTemplateGroup()
-        folder = hou.FolderParmTemplate("folder", "导出选项")
+        flbk_settings.useResolution(1)
+        resx, resy = self.get_cam()
+        flbk_settings.resolution((resx,resy))
+        flbk_settings.frameRange((int(self.start_text.text()),int(self.end_text.text())))
 
 
-        user_text = hou.StringParmTemplate("user_text", "发送给", 1)
-        user_text.setJoinWithNext(True)
+        # self.start = flbk_settings.frameRange()[0]
+        # self.end = flbk_settings.frameRange()[1]
+        inc = flbk_settings.frameIncrement()
 
-        takes_text = hou.StringParmTemplate("takes_text", "项目", 1)
 
-        string_parm = hou.StringParmTemplate("notes", "Notes", 1)
-        string_parm.setTags({"editor": "1"})
+        # Launch the flipbook
+        toolutils.sceneViewer().flipbook(viewport=None, settings=flbk_settings, open_dialog=False)
 
-        folder.addParmTemplate(user_text)
-        folder.addParmTemplate(takes_text)
-        folder.addParmTemplate(string_parm)
+        print("缓存生成成功!")
 
-        parm_group.append(folder)
 
-        rop_node.setInput(0, selected_node, 0)
-        rop_node.moveToGoodPosition(True, False)
+    def run_ffmpeg(self):
+        ffmpeg_command = [
+            'ffmpeg',
+            '-framerate', str(hou.fps()),
+            '-start_number', self.start_text.text(),
+            '-i', 'cache.%04d.jpg',  # 假设图片名称模式为 test.0100.png 到 test.0130.png
+            '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+            '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            self.mp4_output_path  # 输出文件位置
+        ]
+        # ffmpeg_command = 'ffmpeg'
+        # ffmpeg_command += ' -framerate ', str(hou.fps())
+        print("启动ffmpeg!")
 
-        rop_node.setParmTemplateGroup(parm_group)
+        try:
+            result = subprocess.run(
+                ffmpeg_command,
+                cwd=os.path.dirname(self.jpg_out_path),  # 更改当前工作目录到图像序列所在目录
+                check=True,  # 如果命令返回非零退出状态，则抛出CalledProcessError异常
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            print("视频生成成功:", result.stdout.decode())
+            shutil.rmtree(os.path.dirname(self.jpg_out_path))
+            print("缓存文件删除成功!!")
+        except subprocess.CalledProcessError as e:
+            shutil.rmtree(os.path.dirname(self.jpg_out_path))
+            print("视频生成失败:", e.stderr.decode())
 
-        self.change_pram(rop_node)
+
+
+    def get_cam(self):
+        viewer:hou.GeometryViewport = toolutils.sceneViewer().selectedViewport()
+        # viewport:hou.GeometryViewport = viewer.viewports()[0]
+        cam:hou.ObjNode = viewer.camera()
+        if cam:
+            resx = cam.parm("resx").eval()
+            resy = cam.parm("resy").eval()
+            return int(resx),int(resy)
+
+        else:
+            return 1920,1080
 
     def run(self):
-        if "rop" in hou.selectedItems()[0].type().name():
-            self.change_pram(hou.selectedItems()[0])
-        else:
-            self.rop_out()
-
+        self.out_flip()
+        self.run_ffmpeg()
 
 class rop_manager(QWidget):
     def __init__(self):
         super().__init__()
+
 
         btn = QPushButton("debug")
         btn.clicked.connect(self.change_render_parm)
@@ -178,7 +295,7 @@ class rop_manager(QWidget):
         btn_addCache = QPushButton("缓存节点")
         btn_addCache.clicked.connect(self.add_cache)
         btn_addOut = QPushButton("输出节点")
-        btn_addOut.clicked.connect(self.openuser_select)
+        btn_addOut.clicked.connect(self.add_out)
 
         self.cache_list = QListWidget()
         self.cache_list.setStyleSheet("font-size:20px;}")
@@ -187,8 +304,11 @@ class rop_manager(QWidget):
         btn_open_folder.clicked.connect(self.open_cache_folder)
         btn_refresh = QPushButton("刷新")
         btn_refresh.clicked.connect(self.load_cache_list)
+        btn_flipbook = QPushButton("拍屏")
+        btn_flipbook.clicked.connect(self.make_flipbook)
+
         # btn_debug = QPushButton("test")
-        # btn_debug.clicked.connect(self.openuser_select)
+        # btn_debug.clicked.connect(self.make_flipbook)
 
         self.version_list = QListWidget()
         self.version_list.currentItemChanged.connect(self.get_info)
@@ -205,6 +325,7 @@ class rop_manager(QWidget):
         cache_tool_layout = QVBoxLayout()
         cache_tool_layout.addWidget(btn_open_folder)
         cache_tool_layout.addWidget(btn_refresh)
+        cache_tool_layout.addWidget(btn_flipbook)
 
         info_layout = QVBoxLayout()
         info_layout.addWidget(self.version_list)
@@ -379,13 +500,24 @@ class rop_manager(QWidget):
                 self.data_label.setText(f'创建时间：{date}')
                 self.from_label.setText(f'缓存工程: {make}')
 
-    def openuser_select(self):
+    def add_out(self):
         if hou.selectedNodes():
-            node = hou.selectedNodes()[0]
-            win = select_user(hou.qt.mainWindow())
-            win.show()
-        else:
-            hou.ui.displayMessage("请选择一个输出节点")
+            sel = hou.selectedNodes()[0]
+            # name = node.name()
+            if hou.ui.displayMessage("name", buttons=("use:" + sel.name(), "custom"), close_choice=0) == 0:
+                name = "Rop_" + sel.name()
+            else:
+                name = "Rop_" + hou.ui.readInput("custom_name")[1]
+            out_node = sel.parent().createNode("rop_ysure",name)
+            out_node.setInput(0, sel, 0)
+            out_node.moveToGoodPosition(True, False)
+
+    def make_flipbook(self):
+        flipbook = Flipbook(hou.qt.mainWindow())
+        flipbook.show()
+        # flipbook.out_flip()
+        # flipbook.run_ffmpeg()
+
 
 
 

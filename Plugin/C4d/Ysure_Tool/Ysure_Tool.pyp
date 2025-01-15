@@ -48,7 +48,6 @@ def upgrade_selected_project():
                 c4d.CallCommand(202539)
                 c4d.gui.MessageDialog("版本更新完成！", 0)
 
-
 def get_task_list(user):
     project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
     root_path = os.path.dirname(os.path.dirname(project_path))
@@ -59,6 +58,45 @@ def get_task_list(user):
     else:
         return None
 
+def get_in_list():
+    project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
+    in_path = os.path.join(project_path,"__IN__")
+    print(in_path)
+    proj_path = os.path.join(in_path,"metadata","proj.json")
+    in_c4d_file = []
+    if os.path.exists(proj_path):
+        with open(proj_path, "r+", encoding='utf-8') as file:
+            file = json.load(file)
+            for f in file:
+                if f['file_name'].endswith(".c4d"):
+                    in_c4d_file.append(f['file_name'])
+    return in_c4d_file
+
+
+
+    # in_c4d_file = []
+    # if os.path.exists(in_path):
+    #     for i in os.listdir(in_path):
+    #         if i.endswith(".c4d"):
+    #             in_c4d_file.append(i)
+    #     return in_c4d_file
+    # else:
+    #     return None
+
+def merge_file(name):
+    project_path = c4d.documents.GetActiveDocument().GetDocumentPath()
+    in_path = os.path.join(project_path, "__IN__")
+    proj_path = os.path.join(in_path, "metadata", "proj.json")
+    in_c4d_file = []
+    if os.path.exists(proj_path):
+        with open(proj_path, "r+", encoding='utf-8') as file:
+            file = json.load(file)
+            for f in file:
+                if f['file_name'] == name:
+                    path = f['make']
+                    print(path)
+                    print(c4d.documents.MergeDocument(c4d.documents.GetActiveDocument(), path, c4d.SCENEFILTER_OBJECTS | c4d.SCENEFILTER_MATERIALS | c4d.SCENEFILTER_MERGESCENE))
+                    c4d.EventAdd()
 
 class ExportFile(object):
     def __init__(self, user, task):
@@ -119,10 +157,11 @@ class ExportFile(object):
             Export[c4d.FBXEXPORT_SUBSTANCES] = False
             Export[c4d.FBXEXPORT_BAKE_MATERIALS] = False
 
-        if f == 2:
+        elif f == 2:
 
             Export[c4d.ABCEXPORT_CAMERAS] = cam
             Export[c4d.ABCEXPORT_SELECTION_ONLY] = True
+            Export[c4d.ABCIMPORT_CURVES] = False
             if ani == 1:
                 Export[c4d.ABCEXPORT_FRAME_START] = int(
                     c4d.documents.GetActiveDocument().GetMinTime().Get() * c4d.documents.GetActiveDocument().GetFps())
@@ -200,9 +239,17 @@ class ExportFile(object):
 
         with open(os.path.join(self.in_path, "metadata", "proj.json"), "r+", encoding='utf-8') as f:
             project = json.load(f)
-            project.append(self.dic)
+            new_project = []
+            for p in project:
+                if p['file_name'] == self.doc.GetDocumentName():
+                    pass
+                else:
+                    new_project.append(p)
+            new_project.append(self.dic)
+            print(new_project)
             f.seek(0)
-            json.dump(project, f, ensure_ascii=False, indent=4)
+            f.truncate()
+            json.dump(new_project, f, ensure_ascii=False, indent=4)
         f.close()
         c4d.gui.MessageDialog("导出完成!", 0)
         c4d.EventAdd()
@@ -335,7 +382,6 @@ class Local_Tex(object):
         else:
             pass
 
-
 class Flipbook(object):
     def __init__(self):
         self.doc = c4d.documents.GetActiveDocument()
@@ -405,8 +451,12 @@ class ChangeRenderPath(object):
             up = False
         for i in list:
             if not "metadata" in i:
-                parts = i.split("_")[1:-2]
-                name_part = "_".join(parts)
+                if '.take' in i:
+                    parts = i.split("_")[1:-3]
+                    name_part = "_".join(parts)
+                else:
+                    parts = i.split("_")[1:-2]
+                    name_part = "_".join(parts)
                 # print(name_part)
                 ver_part = int(i.split("_")[-1].split('v')[-1])
                 if name_part == content_name and ver_part >= version:
@@ -436,14 +486,24 @@ class ChangeRenderPath(object):
         if self.is_mul:
             print("True")
             vprs[c4d.REDSHIFT_RENDERER_AOV_MULTIPART] = True
-            vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = 'AOV/$prj_$take_AOV_'
-            for aov in aovs:
-                aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$pass/$pass_')
+            if self.take:
+                vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = 'AOV/$prj_$take_AOV_'
+                for aov in aovs:
+                    aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$pass/$pass_$take_')
+            else:
+                vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = 'AOV/$prj_AOV_'
+                for aov in aovs:
+                    aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$pass/$pass_')
         else:
             vprs[c4d.REDSHIFT_RENDERER_AOV_MULTIPART] = False
-            vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = '$prj_AOV'
-            for aov in aovs:
-                aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$filename_$pass/$pass_')
+            if self.take:
+                vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = '$prj_$take_AOV'
+                for aov in aovs:
+                    aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$filename_$pass/$pass_$take_')
+            else:
+                vprs[c4d.REDSHIFT_RENDERER_AOV_PATH] = '$prj_AOV'
+                for aov in aovs:
+                    aov.SetParameter(c4d.REDSHIFT_AOV_FILE_PATH, '$filepath$filename_$pass/$pass_')
         # aovs = redshift.RendererGetAOVs(vprs)
 
         redshift.RendererSetAOVs(vprs, aovs)
@@ -456,7 +516,7 @@ class GUI(c4d.gui.GeDialog):
         super().__init__()
 
     def CreateLayout(self):
-        self.SetTitle("test")
+        self.SetTitle("Ysure流程工具")
 
         if self.GroupBegin(0, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 0, 0, '导出给别人', 0, 0, 0):
             self.GroupBorderSpace(20, 20, 20, 20)
@@ -465,6 +525,13 @@ class GUI(c4d.gui.GeDialog):
                 if self.GroupBegin(10, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 2, 3, '版本更新', 0, 0, 0):
                     self.AddButton(100, c4d.BFH_LEFT, 0, 0, "版本更新")
                     self.AddButton(102, c4d.BFH_LEFT, 0, 0, "本地化资产")
+                self.GroupEnd()
+                if self.GroupBegin(12, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 3, 3, '合并工程', 0, 0, 0):
+                    self.AddStaticText(11, c4d.BFH_LEFT, 0, 0, '选择工程', 0)
+                    self.AddButton(3000, c4d.BFH_LEFT, 0, 0, "更新")
+                    self.AddComboBox(3002, c4d.BFH_LEFT, 80, 10, False, False)
+                    self.AddButton(106, c4d.BFH_CENTER, 0, 0, "合并文件")
+
                 self.GroupEnd()
                 if self.GroupBegin(11, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 1, 5, '导出给别人', 0, 0, 0):
                     if self.GroupBegin(14, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 2, 5, '导出给别人', 0, 0, 0):
@@ -497,26 +564,27 @@ class GUI(c4d.gui.GeDialog):
                         self.AddButton(101, c4d.BFH_CENTER, 0, 0, "导出选择物体给他人")
                     self.GroupEnd()
                 self.GroupEnd()
-                if self.GroupBegin(12, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 4, 3, '渲染', 0, 0, 0):
+                if self.GroupBegin(14, c4d.BFH_SCALEFIT | c4d.BFV_SCALEFIT, 4, 3, '渲染', 0, 0, 0):
                     self.AddButton(103, c4d.BFH_CENTER, 0, 0, "更改渲染保存路径")
                     self.AddEditText(105, c4d.BFH_CENTER, 150, 0, 0)
                     self.SetString(105, "$prj_")
                     self.AddCheckbox(2004, c4d.BFH_RIGHT, 0, 0, "多层AOV")
                     self.AddCheckbox(2005, c4d.BFH_RIGHT, 0, 0, "多场次")
                     self.AddButton(104, c4d.BFH_CENTER, 0, 0, "拍屏")
-
                 self.GroupEnd()
             self.GroupEnd()
         self.GroupEnd()
 
     def Command(self, id, msg):
         global tasks
+
         if id == 100:
             name = self.GetInt32(1000)
             # print()
             upgrade_selected_project()
             # load()
 
+        ##更改导出给别人的列表
         if id == 1000:
 
             self.AddChild(1002, 30001, "test")
@@ -524,7 +592,7 @@ class GUI(c4d.gui.GeDialog):
             user = _user[self.GetInt32(1000) - 10001]
             # get_task_list(user)
             if get_task_list(user):
-                index = 30001
+                index = 10001
                 tasks = []
                 for task in get_task_list(user):
                     self.AddChild(1002, index, task)
@@ -532,6 +600,29 @@ class GUI(c4d.gui.GeDialog):
                     index += 1
             print("change")
 
+        ##合并文件
+
+
+        ##更改合并文件列表
+        if id == 3000:
+            self.FreeChildren(3002)
+            if get_in_list():
+                index = 30001
+                tasks = []
+                for in_file in get_in_list():
+                    self.AddChild(3002, index, in_file)
+                    tasks.append(in_file)
+                    index += 1
+            print("change")
+
+        if id ==106:
+            if c4d.gui.MessageDialog("是否合并文件", c4d.GEMB_YESNO) == c4d.GEMB_R_V_YES:
+                t = self.GetInt32(3002) - 30001
+                print(tasks)
+                print(tasks[t])
+                merge_file(tasks[t])
+
+        #更改发送到C4d的复选框
         if id == 2006:
             prj = self.GetBool(2006)
             if prj:
@@ -543,11 +634,12 @@ class GUI(c4d.gui.GeDialog):
                     self.Enable(i, True)
                 print("0")
 
+        ##导出文件给别人
         if id == 101:
             name = self.GetInt32(1000)
             user = _user[name - 10001]
             f = self.GetInt32(1001) - 20001
-            t = self.GetInt32(1002) - 30001
+            t = self.GetInt32(1002) - 10001
             # format = _format[f-20001]
             ani = self.GetBool(2000)
             cam = self.GetBool(2001)
@@ -565,6 +657,7 @@ class GUI(c4d.gui.GeDialog):
 
             else:
                 c4d.gui.MessageDialog("none", 0)
+
         if id == 102:
             lt = Local_Tex()
             lt.run()

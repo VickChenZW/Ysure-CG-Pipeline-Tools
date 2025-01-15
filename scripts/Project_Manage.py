@@ -101,8 +101,6 @@ class project_manager(QWidget):
 
         gv.root_changed.connect(self.List_update)
 
-
-
     def create_new_project_file(self):
         name = self.name_lab.text()
         date = Function.get_date()
@@ -140,14 +138,11 @@ class project_manager(QWidget):
         sub_window = Opensub()
         sub_window.exec_()
 
-
-
 def error(message):
     dig = QMessageBox()
     dig.setWindowTitle("error")
     dig.setText(message)
     button = dig.exec_()
-
 
 def is_chinese(string):
     """

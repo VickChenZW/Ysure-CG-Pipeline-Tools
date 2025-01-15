@@ -6,10 +6,14 @@ from PySide2.QtWidgets import (
     QHBoxLayout, QVBoxLayout, QLineEdit, QListWidget,
     QComboBox, QDialog, QDialogButtonBox,
     QTextEdit, QListWidgetItem, QMessageBox, QTableView, QHeaderView,
-    QSplitter, QTreeWidget, QTreeWidgetItem
+    QSplitter, QTreeWidget, QTreeWidgetItem,QAbstractItemView
 )
-from PySide2.QtCore import QSize, Qt, QMimeData, QUrl, QPoint, QSortFilterProxyModel, Signal
-from PySide2.QtGui import QIcon, QDrag, QStandardItemModel, QStandardItem
+from PySide2.QtCore import (QSize, Qt, QMimeData, QUrl, QPoint,
+                            QSortFilterProxyModel, Signal, QModelIndex
+                            )
+from PySide2.QtGui import (QIcon, QDrag, QStandardItemModel,
+                           QStandardItem, QColor, QDragEnterEvent,
+                           QDragLeaveEvent, QDragMoveEvent, QDropEvent)
 
 from  scripts import Function
 
@@ -139,6 +143,30 @@ class DraggableListWidget(QListWidget):
 
         drop_action = drag.exec_(supportedActions)
 
+class DraggableTreeWidget(QTreeWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QTreeWidget.DragOnly)  # 设置拖拽模式为仅拖出
+        self.setDefaultDropAction(Qt.CopyAction)
+
+    def startDrag(self, supportedActions):
+        item = self.currentItem()
+        if item is None:
+            return
+
+        project = item.data(0, Qt.UserRole)
+        file_path = project["path"]
+        mime_data = QMimeData()
+        mime_data.setUrls([QUrl.fromLocalFile(file_path)])
+
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+        drag.setHotSpot(QPoint(25, 25))
+
+        drop_action = drag.exec_(supportedActions)
+
 class Opensub(QDialog):
     def __init__(self):
         super().__init__()
@@ -147,22 +175,37 @@ class Opensub(QDialog):
         self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "version.ico")))
         self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo','ABC': 'alembic', 'VDB': 'vdb'}
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task
+
+        self.path_label = QLabel()
+        self.layout.addWidget(self.path_label)
+
         self.tab = QTabWidget()
         self.add_ltem()
+        self.tab.currentChanged.connect(self.change_path_tab)
 
         self.layout.addWidget(self.tab)
+        self.path_label.setText(self.assets[self.tab.tabText(0)])
         self.setLayout(self.layout)
 
     def add_ltem(self):
         self.createFoloder()
         for key in self.assets:
+
+
+
             widget = QWidget()
             layout = QVBoxLayout(widget)
             list = DraggableListWidget()
             list.itemDoubleClicked.connect(lambda item,lw = list:self.open_down(item,lw))
+
+            btn_up = QPushButton("向上一层")
+            btn_up.pressed.connect(lambda lw = list:self.open_up(lw))
+
             btn_open = QPushButton("打开文件夹")
             btn_open.pressed.connect(lambda x=self.assets[key]:os.startfile(os.path.join(self.current_file,x)))
+
             layout.addWidget(list)
+            layout.addWidget(btn_up)
             layout.addWidget(btn_open)
             self.tab.addTab(widget, key)
             path = os.path.join(self.current_file,self.assets[key])
@@ -175,8 +218,17 @@ class Opensub(QDialog):
                     dic = {
                         'path':os.path.join(path,i)
                     }
+                    if os.path.isdir(os.path.join(path,i)):
+                        item.setBackgroundColor(QColor(0,50,0))
                     item.setData(Qt.UserRole,dic)
                     list.addItem(item)
+
+    def change_path_tab(self):
+        self.path_label.setText(self.assets[self.tab.tabText(self.tab.currentIndex())])
+    def change_path_label(self, new_path):
+        path = self.path_label.text()
+        self.path_label.setText(path+"\\"+new_path)
+
     def open_down(self,value,list):
         data = value.data(Qt.UserRole)
         path = data['path']
@@ -187,6 +239,26 @@ class Opensub(QDialog):
                 dic = {
                     'path': os.path.join(path, i)
                 }
+                if os.path.isdir(os.path.join(path, i)):
+                    item.setBackgroundColor(QColor(0, 50, 0))
+                item.setData(Qt.UserRole, dic)
+                list.addItem(item)
+            self.change_path_label(path.split("\\")[-1])
+
+    def open_up(self,list):
+        if not "\\" in self.path_label.text():
+            pass
+        else:
+            self.path_label.setText(os.path.dirname(self.path_label.text()))
+            path = os.path.join(os.path.join(self.current_file,self.path_label.text()))
+            list.clear()
+            for i in os.listdir(path):
+                item = QListWidgetItem(i)
+                dic = {
+                    'path': os.path.join(path, i)
+                }
+                if os.path.isdir(os.path.join(path, i)):
+                    item.setBackgroundColor(QColor(0, 50, 0))
                 item.setData(Qt.UserRole, dic)
                 list.addItem(item)
 
@@ -207,43 +279,81 @@ class Flipbook_Dialog(QDialog):
         self.layout = QVBoxLayout()
         self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
         self.content_label = QLabel(self.content)
-        self.list = DraggableListWidget()
-        self.list.doubleClicked.connect(self.open)
+        self.content_label.setStyleSheet("font-size:20px;}")
+        self.content_label.setAlignment(Qt.AlignCenter)
+
+        self.btn_expanded = QPushButton("全部折叠")
+        self.btn_expanded.clicked.connect(self.expanded)
+
+        # self.list = DraggableListWidget()
+        self.list = DraggableTreeWidget()
+        self.list.setHeaderLabels(['版本','创建时间'])
+        self.list.doubleClicked.connect(self.open_file)
         btn_refresh = QPushButton("刷新列表")
-        btn_refresh.clicked.connect(self.add_item())
+        btn_refresh.clicked.connect(self.add_item)
         btn_open = QPushButton("打开拍屏文件夹")
         btn_open.clicked.connect(lambda :os.startfile(self.flip_path))
         self.layout.addWidget(self.content_label)
+        self.layout.addWidget(self.btn_expanded)
         self.layout.addWidget(self.list)
         self.layout.addWidget(btn_refresh)
         self.layout.addWidget(btn_open)
         self.setLayout(self.layout)
         self.add_item()
+
     def add_item(self):
-        pattern = r'^(.*)(?:_(v\d{3}))(?:_(.*?))$'
+        pattern = r'^(.*?)(?:_(v\d{3}))(?:_(.*?))$'
         self.list.clear()
         if os.path.exists(self.flip_path):
-            files = sorted(os.listdir(self.flip_path), reverse=True)
+            # 获取所有文件并按版本降序排序
+            files = sorted((f for f in os.listdir(self.flip_path)),
+                           key=lambda f: os.path.getmtime(os.path.join(self.flip_path, f)), reverse=True)
+
+            version_items = {}
             for i in files:
                 filename = os.path.splitext(i)[0]
                 group = re.match(pattern, filename)
-                name = group.group(1)
-                version = group.group(2)
-                time = group.group(3)
-                path = os.path.join(self.flip_path,i)
-                item = QListWidgetItem(f'{version}  创建日期{time}')
-                content = {
-                    "content": i,
-                    "path": path
-                }
-                item.setData(Qt.UserRole,content)
-                self.list.addItem(item)
+                if group:
+                    name = group.group(1)
+                    version = group.group(2)
+                    time = group.group(3)
+                    path = os.path.join(self.flip_path, i)
+
+                    if version not in version_items:
+                        # 创建一个新的顶级项（版本）
+                        version_item = QTreeWidgetItem(self.list, [version, ""])
+                        version_items[version] = version_item
+
+                    # 创建子项并添加到对应的版本项下
+                    file_item = QTreeWidgetItem(version_item, ["", f"{time}"])
+                    file_item.setData(0, Qt.UserRole, {"content": i, "path": path})
+
+            # 展开所有顶级项
+            for version_item in version_items.values():
+                version_item.setExpanded(True)
+
         else:
             pass
-    def open(self,value):
-        data = value.data(Qt.UserRole)
-        path = data["path"]
-        os.startfile(path)
+
+    def open_file(self, index: QModelIndex):
+        """处理双击事件"""
+        if not index.isValid():
+            return
+
+        item = self.list.itemFromIndex(index)
+        if item is None:
+            return
+
+        data = item.data(0, Qt.UserRole)
+        if data:
+            path = data["path"]
+            try:
+                os.startfile(path)
+            except Exception as e:
+                print(f"Error opening file: {e}")
+
+    def expanded(self):
+        self.list.collapseAll()
 
 class Version_Table(QStandardItemModel):
     dataChangedSignal = Signal(int,int,str)
@@ -282,8 +392,78 @@ class Version_Table(QStandardItemModel):
                 # 调用父类的 setData 方法以确保实际的数据更新
             return super().setData(index, value, role)
 
+class CopyToFileDialog(QDialog):
+    def __init__(self, src_path):
+        super().__init__()
+        self.src_path = src_path
+        self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo', 'ABC': 'alembic', 'VDB': 'vdb'}
+        self.text = ""
 
-class Work_Project(QWidget):
+        self.setWindowTitle("复制到文件")
+        self.setWindowIcon(QIcon(os.path.join(base_dir, "../icon", "new.ico")))
+
+        self.layout = QVBoxLayout()
+
+        self.label = QLabel(src_path)
+        self.layout.addWidget(self.label)
+
+        for k in self.assets:
+            btn = QPushButton(k)
+            btn.clicked.connect(self.clicked)
+            self.layout.addWidget(btn)
+
+        self.setLayout(self.layout)
+
+    def clicked(self):
+        button:QPushButton = self.sender()
+        self.text = button.text()
+        self.accept()
+
+    def get_text(self):
+        return self.text
+
+    def get_asset(self) ->dict:
+        return self.assets
+
+
+class DraggableDroppableWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        # self.setDragDropMode(QAbstractItemView.DragDrop)
+
+    def startDrag(self, supportedActions):
+        item = self.currentItem()
+        if item is None:
+            return
+
+        project = item.data(Qt.UserRole)
+        file_path = project["path"]
+        mime_data = QMimeData()
+        mime_data.setUrls([QUrl.fromLocalFile(file_path)])
+
+        drag = QDrag(self)
+        drag.setMimeData(mime_data)
+        drag.setPixmap(item.icon().pixmap(50, 50))
+        drag.setHotSpot(QPoint(25, 25))
+
+        drop_action = drag.exec_(supportedActions)
+
+    def dragEnterEvent(self, event:QDragEnterEvent):
+        mime_data = event.mimeData()
+        if mime_data.hasUrls():
+            url = mime_data.urls()[0]
+            event.acceptProposedAction()
+            print(url.toLocalFile())
+
+    def dragLeaveEvent(self, event:QDragLeaveEvent):
+        print('leave')
+
+    def dropEvent(self, event:QDropEvent) -> None:
+        event.accept()
+        print('move')
+
+class Work_Project(DraggableDroppableWidget):
     def __init__(self):
         super().__init__()
         self.data_file = ""
@@ -475,7 +655,9 @@ class Work_Project(QWidget):
             QMessageBox.warning(self, "警告", "请创建文件夹")
         else:
             dialog = ProjectDialog()
+
             if dialog.exec_() == QDialog.Accepted:
+
                 content_name = dialog.content_edit.text().strip()
                 version = 1
                 dcc = dialog.dcc_select.currentText()
@@ -486,26 +668,34 @@ class Work_Project(QWidget):
                     QMessageBox.warning(self, "警告", "内容名称不能为空")
                     return
 
-                full_name = content_name+"_v" + str(version).zfill(3) + format
-                self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
-                self.data_file = self.current_file + "/metadata/project.json"
-                self.copy_and_rename(dcc + format, self.current_file + "/", full_name)
-
-                new_project = {
-                    'content': content_name,
-                    'version': version,
-                    'user': Global_Vars.User,
-                    'dcc': dcc,
-                    'path': self.current_file+"/"+full_name,
-                    'notes': notes
-                }
-
-
+                exist_file = []
                 with open(self.data_file, 'r+', encoding='utf-8') as file:
                     projects = json.load(file)
-                    projects.append(new_project)
-                    file.seek(0)
-                    json.dump(projects, file, ensure_ascii=False, indent=4)
+
+                    for i in projects:
+                        exist_file.append(i['content'])
+                file.close()
+
+                if content_name in exist_file:
+                    QMessageBox.warning(self, "警告", "文件名已经存在")
+                else:
+                    full_name = content_name+"_v" + str(version).zfill(3) + format
+                    self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
+                    self.data_file = self.current_file + "/metadata/project.json"
+                    self.copy_and_rename(dcc + format, self.current_file + "/", full_name)
+                    new_project = {
+                        'content': content_name,
+                        'version': version,
+                        'user': Global_Vars.User,
+                        'dcc': dcc,
+                        'path': self.current_file+"/"+full_name,
+                        'notes': notes
+                    }
+                    with open(self.data_file, 'r+', encoding='utf-8') as file:
+                        projects = json.load(file)
+                        projects.append(new_project)
+                        file.seek(0)
+                        json.dump(projects, file, ensure_ascii=False, indent=4)
 
             self.load_projects()
 
@@ -516,11 +706,12 @@ class Work_Project(QWidget):
             return
 
         item_text = selected_item.text()
-        content_name = item_text.split(' ')[0]
+        content_name = item_text.split(' ')[1]
 
         self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
         self.data_file = self.current_file + "/metadata/project.json"
         if QMessageBox.question(self, "升级工程", "请确实使用外部升级\n确认保存当前工程了") == QMessageBox.StandardButton.Yes:
+            print("ok")
             with open(self.data_file, 'r+', encoding='utf-8') as file:
                 projects = json.load(file)
                 latest_project = None
@@ -588,7 +779,14 @@ class Work_Project(QWidget):
     def update_list(self):
         self.load_projects()
         self.show_all_versions()
-        self.change_combo()
+        index = self.project_combo.currentIndex()
+        self.project_combo.clear()
+        path = Global_Vars.Project + "/2.Project/" + Global_Vars.User
+        if os.path.exists(path):
+            projs = os.listdir(path)
+            for proj in projs:
+                self.project_combo.addItem(proj)
+        self.project_combo.setCurrentIndex(index)
 
     def on_header_clicked(self, logical_index):
         # 获取当前排序顺序
@@ -675,6 +873,15 @@ class Work_Project(QWidget):
     def opensub(self):
         sub_window = Opensub()
         sub_window.exec_()
+
+    def dropEvent(self, event:QDropEvent):
+        self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + self.project_combo.currentText()
+        src_path = event.mimeData().urls()[0].toLocalFile()
+        dialog = CopyToFileDialog(src_path)
+        if dialog.exec_() == QDialog.Accepted:
+            des = os.path.join(self.current_file, dialog.get_asset()[dialog.get_text()],os.path.basename(src_path))
+            shutil.copy(src_path,des)
+
 
 
 
