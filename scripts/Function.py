@@ -1,40 +1,82 @@
-import pyperclip, os
+import configparser
+import json
 from datetime import datetime
-import json, configparser
-import re
 
+import os, sys
+import pyperclip
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 
+def get_resource_path(relative_path):
+    """ 获取资源的绝对路径，适用于开发环境和 Nuitka/PyInstaller 打包后 """
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Nuitka/PyInstaller 在 --onefile 模式下会创建临时目录 _MEIPASS
+        # 注意：Nuitka 的 --onefile 行为可能略有不同，有时文件在可执行文件旁边
+        base_path = sys._MEIPASS
+        print(f"Running in onefile bundle, _MEIPASS: {base_path}")
+    elif getattr(sys, 'frozen', False):
+        # 在 --standalone 模式下，或某些 Nuitka --onefile 模式下
+        # 资源通常位于可执行文件所在的目录
+        base_path = os.path.dirname(os.path.abspath(sys.executable))
+        print(f"Running as frozen executable, base path: {base_path}")
+    else:
+        # 在开发环境中运行（直接 python main.py）
+        # 假设资源相对于当前脚本文件 (__file__)
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        print(f"Running in development mode, base path: {base_path}")
+
+    resource_path = os.path.join(base_path, relative_path)
+    print(f"Calculated resource path for '{relative_path}': {resource_path}")
+    # 添加检查，确保路径存在，便于调试
+    # if not os.path.exists(resource_path):
+    #    print(f"Warning: Resource path does not exist: {resource_path}")
+    #    # 可以考虑列出 base_path 下的内容帮助调试
+    #    try:
+    #        print(f"Contents of base_path ({base_path}): {os.listdir(base_path)}")
+    #    except OSError as e:
+    #        print(f"Could not list contents of base_path: {e}")
+
+    return resource_path
+
+
 def get_from_clipboard():
+    """
+    从剪贴板获取信息
+    :return:
+    """
     return pyperclip.paste()
 
+
 def mac_2_win(address):
+    """
+    mac地址转换为win的地址
+    :param address: str
+    :return: str
+    """
     if "smb" in address or "Volumes" in address:
         # print(address)
-        backadd = address.split("YsureSuperHub")
-        newpath = "Y:"+backadd[1]
-        pyperclip.copy(newpath)
-        if os.path.isdir(newpath):
-            os.startfile(newpath)
+        path_without_disk = address.split("YsureSuperHub")
+        new_path = "Y:" + path_without_disk[1]
+        pyperclip.copy(new_path)
+        if os.path.isdir(new_path):
+            os.startfile(new_path)
         else:
-            file = os.path.abspath(newpath)
-            newpath = os.path.split(newpath)[0]+"/"
-            os.startfile(newpath)
-            # 选中文件，但是没有解决后缀名的问题
-            # os.system(f'explorer /select, {file}')
+            new_path = os.path.split(new_path)[0] + "/"
+            os.startfile(new_path)
+
 
 def win_2_mac(address):
+    """
+    win地址转换为mac的地址
+    :param address: str
+    :return: str
+    """
     if "Y:" in address:
-        address = address.replace("\\","/")
-        backadd = address.split('Y:/')
-        newpath = "/Volumes/YsureSuperHub/" + backadd[1]
-        pyperclip.copy(newpath)
-
-def is_path(address):
-    path = os.path.isdir(address)
-    return path
+        address = address.replace("\\", "/")
+        path_without_disk = address.split('Y:/')
+        new_path = "/Volumes/YsureSuperHub/" + path_without_disk[1]
+        pyperclip.copy(new_path)
 
 
 def get_date():
@@ -42,12 +84,12 @@ def get_date():
     year = str(now.year)
     month = now.month
     day = now.day
-    if month<10:
+    if month < 10:
         month = "0" + str(month)
     else:
         month = str(month)
 
-    if day<10:
+    if day < 10:
         day = "0" + str(day)
     else:
         day = str(day)
@@ -55,46 +97,12 @@ def get_date():
     date = year + "." + month + "." + day
     return date
 
+
 def create_path(address):
     if not os.path.exists(address):
         os.makedirs(address)
     else:
         return False
-
-def path_2_json(address, path):
-    dict = {}
-    dict_list = []
-    names = os.listdir(address)
-    for name in names:
-        if "_" in name:
-            if os.path.isdir(address+"\\"+name):
-                d = name.split("_")[0]
-                n = name.split("_")[-1]
-                # print(d,n)
-                dict = ({"name": n, "date": d,  "describe": ""})
-                dict_list.append(dict)
-    # print(dict_list)
-    with open(path, "w") as f:
-         json.dump(dict_list, f)
-    f.close()
-
-
-def getjson(path):
-    with open(path, "r") as f:
-        json_file = json.load(f)
-    return json_file
-
-
-def json_2_path(address):
-    name = []
-    date = []
-    path_dic_lists = getjson(address)
-    if path_dic_lists != None:
-        for list in path_dic_lists:
-            name.append(list["name"])
-            date.append(list["date"])
-    return name, date
-
 
 
 def get_Project_info(path):
@@ -124,31 +132,24 @@ def create_sub_folders(path):
     outs = ["Sequence", "Video"]
     assets = ["Documents", "HDRI", "Image", "Model", "PS+AI", "Temp", "Texture", "Video"]
     for sub in subs:
-        os.makedirs(path+"/"+sub)
+        os.makedirs(path + "/" + sub)
     for out in outs:
-        os.makedirs(path+"/4.Output/"+out)
+        os.makedirs(path + "/4.Output/" + out)
 
     for asset in assets:
-        os.makedirs(path+"/1.File/"+asset)
+        os.makedirs(path + "/1.File/" + asset)
 
 
-def create_work(path, user, name, format, version, describe):
-    filename = path + "/2.Project/" + user + "/" + name + "/" + version + "." + format
-    with open(filename, "w") as f:
-        pass
-    f.close()
-
-
-def create_work_Folder(path, user, name, list):
-    project_path = path+"/2.Project/"+user
+def create_work_Folder(path, user, name, type_lists):
+    project_path = path + "/2.Project/" + user
     if not os.path.exists(project_path):
         os.makedirs(project_path)
-    project_path+="/"+name
+    project_path += "/" + name
     if not os.path.exists(project_path):
         os.makedirs(project_path)
-    for l in list:
-        if not os.path.exists(project_path + "/" +l):
-            os.makedirs(project_path + "/" +l)
+    for file_type in type_lists:
+        if not os.path.exists(project_path + "/" + file_type):
+            os.makedirs(project_path + "/" + file_type)
 
 
 def ini(root, project, user):
@@ -159,39 +160,22 @@ def ini(root, project, user):
         "current_Project": project,
         "current_User": user
     }
-    # config["Version"] = {
-    #     "version": version,
-    #     "update_data": datetime.now().strftime('%Y-%m-%d %H-%M-%S'),
-    #     "update_notes": notes
-    # }
-    if not os.path.exists(os.path.join(base_dir, "../config")):
-        os.makedirs(os.path.join(base_dir, "../config"))
 
-    path = os.path.join(base_dir, "../config", "config.ini")
-    with open(path,"w") as f:
-        config.write(f)
-    f.close()
+    # config_path = get_resource_path(os.path.join(base_dir, "../config"))
+    config_path = os.path.join(base_dir, "../config")
 
+    if not os.path.exists(config_path):
+        os.makedirs(config_path)
 
-def version_ini(version, notes=''):
-    config = configparser.ConfigParser()
-
-    config["Version"] = {
-        "version": version,
-        "update_data": datetime.now().strftime('%Y-%m-%d %H-%M-%S'),
-        "update_notes": notes
-    }
-    if not os.path.exists(os.path.join(base_dir, "../config")):
-        os.makedirs(os.path.join(base_dir, "../config"))
-
-    path = os.path.join(base_dir, "../config", "version.ini")
-    with open(path,"w") as f:
+    path = os.path.join(config_path, "config.ini")
+    with open(path, "w") as f:
         config.write(f)
     f.close()
 
 
 def get_ini():
     config = configparser.ConfigParser()
+    # path = get_resource_path(os.path.join(base_dir, "../config", "config.ini"))
     path = os.path.join(base_dir, "../config", "config.ini")
     if os.path.exists(path):
         config.read(path)
@@ -201,10 +185,3 @@ def get_ini():
     user = config.get("Settings", "current_User")
 
     return root, project, user
-
-
-
-
-
-
-

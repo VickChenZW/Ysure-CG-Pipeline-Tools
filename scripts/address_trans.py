@@ -37,10 +37,10 @@ class Drag_Function(QLabel):
         self.setText("拖动到此处")
         self.setCursor(Qt.OpenHandCursor)
 
-    def dropEvent(self, event:QDropEvent) -> None:
+    def dropEvent(self, event: QDropEvent) -> None:
         if event.mimeData().hasText():
             text = event.mimeData().text()
-            if "smb" in text or "Volumes" in  text:
+            if "smb" in text or "Volumes" in text:
                 Function.mac_2_win(text)
             else:
                 Function.win_2_mac(text)

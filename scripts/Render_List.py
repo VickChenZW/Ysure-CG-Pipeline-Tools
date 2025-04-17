@@ -85,8 +85,7 @@ class DraggableTreeWidget(QTreeWidget):
         drop_action = drag.exec_(supportedActions)
 
 
-
-class render_list(QWidget):
+class RenderList(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -292,7 +291,6 @@ class render_list(QWidget):
 
 
         item = self.list_render.currentItem()
-        # self.list_take.currentItemChanged.connect(None)
 
         if item:
             info = item.data(0,Qt.UserRole)
@@ -307,8 +305,7 @@ class render_list(QWidget):
                     item_take.setData(Qt.UserRole, {'path': path})
                     self.list_take.addItem(item_take)
             self.list_take.currentItemChanged.connect(self.update_aov_list)
-            # self.label_count.setText(f'帧数:{str(count)}')
-            # self.label_name.setText(f'渲染名:{render_name}')
+
 
     def update_aov_list(self, value):
         print("1")
