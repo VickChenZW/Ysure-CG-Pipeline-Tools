@@ -7,7 +7,7 @@ from PySide2.QtWidgets import (
     QFileDialog, QLineEdit, QListWidget, QDialog, QDialogButtonBox,
     QAction, QStatusBar, QSystemTrayIcon, QMenu, QStyle  # 添加 QSystemTrayIcon, QMenu, QAction, QStyle
 )
-from PySide2.QtCore import QSize, Qt, Signal, QAbstractNativeEventFilter
+from PySide2.QtCore import QSize, Qt, Signal, QAbstractNativeEventFilter, QTimer
 from PySide2.QtGui import QIcon, QPixmap
 import qdarktheme
 from scripts.WorkProjectWidget import WorkProjectWidget
@@ -289,6 +289,13 @@ class MainWindow(QMainWindow):
         self.popup_widget = Win11StylePopup()
         # ++++++++++++++++++++++++++++++++++++++++++++
 
+        # --- 添加用于区分单击/双击的定时器 ---
+        self.click_timer = QTimer(self)
+        self.click_timer.setInterval(QApplication.doubleClickInterval()) # 使用系统双击间隔
+        self.click_timer.setSingleShot(True)
+        self.click_timer.timeout.connect(self.handle_single_click) # 定时器超时执行单击操作
+        # ------------------------------------
+
         gv.or_changed.connect(lambda value: self.statusBar.showMessage(value, 3000))
         gv.or_changed.connect(self.change_connect)
         gv.or_changed.connect(self.popup_widget.load_history)
@@ -328,32 +335,37 @@ class MainWindow(QMainWindow):
                 2000  # 消息显示时间（毫秒）
             )
 
-    def tray_icon_activated(self, reason):
-        """处理托盘图标的激活事件（例如单击）"""
-        # 如果是单击事件 (Trigger)
-        print(reason)
-        if reason == QSystemTrayIcon.Trigger:
-            # if self.isHidden():
-            #     self.showNormal()  # 显示窗口
-            #     self.activateWindow() # 将窗口置于前台
-            # else:
-            #     # 如果窗口可见，再次单击则隐藏（可选行为）
-            #     self.hide()
-            if self.popup_widget.isHidden():
-                self.show_popup_widget()
-            else:
-                self.popup_widget.hide()
-        # if reason == QSystemTrayIcon.DoubleClick:
-        #     if self.popup_widget.isHidden():
-        #         pass
-        #     else:
-        #         if self.isHidden():
-        #             self.showNormal()  # 显示窗口
-        #             self.activateWindow() # 将窗口置于前台
-        #         else:
-        #             # 如果窗口可见，再次单击则隐藏（可选行为）
-        #             self.hide()
 
+
+
+    # --- 修改后的 tray_icon_activated (使用定时器) ---
+    def tray_icon_activated(self, reason):
+        """处理托盘图标的激活事件（单击和双击）"""
+        if reason == QSystemTrayIcon.DoubleClick:
+            # 如果是双击，立即停止定时器（如果正在运行）并执行双击操作
+            self.click_timer.stop()
+            self.handle_double_click()
+        elif reason == QSystemTrayIcon.Trigger:
+            # 如果是单击，启动（或重启）定时器
+            self.click_timer.start(100)
+        # ---------------------------------------------
+
+        # --- 新增：处理定时器超时（即确认为单击） ---
+
+    def handle_single_click(self):
+        """执行单击操作：切换小工具"""
+        print("Detected single click")
+        self.show_popup_widget()
+        # ------------------------------------------
+
+        # --- 新增：处理双击操作 ---
+
+    def handle_double_click(self):
+        """执行双击操作：显示主窗口"""
+        print("Detected double click")
+        self.show_main_window()
+
+    # -------------------------
     def quit_application(self):
         """处理退出应用程序的请求"""
         print("正在退出应用程序...")
@@ -374,9 +386,21 @@ class MainWindow(QMainWindow):
         if not self.update.check_update():
             self.statusBar.showMessage("你已经是最新版本!!", 5000)
 
+
+    def show_main_window(self):
+        """显示主窗口并激活"""
+        if self.isHidden():
+            self.show()
+        self.activateWindow()
+        # if hasattr(self, 'popup_widget') and self.popup_widget.isVisible():
+        #     self.popup_widget.hide()
+
     def show_popup_widget(self):
 
-        self.popup_widget.show_at_bottom_right()
+        if self.popup_widget.isHidden():
+            self.popup_widget.show_at_bottom_right()
+        else:
+            self.popup_widget.hide()
 
     def change_connect(self):
         # 确保总是从 Global_Vars 获取最新的值

@@ -178,10 +178,18 @@ def get_ini():
     # path = get_resource_path(os.path.join(base_dir, "../config", "config.ini"))
     path = os.path.join(base_dir, "../config", "config.ini")
     if os.path.exists(path):
-        config.read(path)
 
-    root = config.get("Settings", "current_Root")
-    project = config.get("Settings", "current_Project")
-    user = config.get("Settings", "current_User")
+        try:
+            config.read(path)
+            root = config.get("Settings", "current_Root")
+            project = config.get("Settings", "current_Project")
+            user = config.get("Settings", "current_User")
+
+        except:
+            ini('Y:/07.Personal/Vick/7.Develop/Pipeline/pipelinetest', 'Y:/07.Personal/Vick/7.Develop/Pipeline/pipelinetest/2025.04.23_chatting_test', 'Vick')
+            config.read(path)
+            root = config.get("Settings", "current_Root")
+            project = config.get("Settings", "current_Project")
+            user = config.get("Settings", "current_User")
 
     return root, project, user

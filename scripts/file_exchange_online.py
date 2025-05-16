@@ -396,12 +396,16 @@ class FileSenderWidget(QWidget):
         file_filter_layout.addWidget(QLabel("文件类型:"))
         self.subdir_filter_combo = QComboBox()
         self.subdir_filter_combo.addItems(VALID_SUBDIRS)
+        self.subdir_filter_combo.addItems(['Project'])
         self.subdir_filter_combo.currentIndexChanged.connect(self.update_file_tree_view)
         file_filter_layout.addWidget(self.subdir_filter_combo)
         files_layout.addLayout(file_filter_layout)
         self.file_list_label = QLabel(f"文件 ({self.user_name} / {self.current_task or '未选任务'}):")
         self.file_list_label.setObjectName("file_list_label")
         files_layout.addWidget(self.file_list_label)
+        self.refresh_files_list_btn = QPushButton('刷新')
+        self.refresh_files_list_btn.pressed.connect(self.update_file_tree_view)
+        files_layout.addWidget(self.refresh_files_list_btn)
         self.file_tree_view = QTreeView()
         self.file_tree_model = QStandardItemModel()
         self.file_tree_view.setModel(self.file_tree_model)
@@ -607,7 +611,10 @@ class FileSenderWidget(QWidget):
         # Construct the specific task path to scan
         task_path = os.path.join(self.project_root, "2.Project", self.user_name, self.current_task).replace('\\', '/')
         selected_subdir = self.subdir_filter_combo.currentText()
-        target_dir = os.path.join(task_path, selected_subdir).replace('\\', '/')
+        if selected_subdir == 'Project':
+            target_dir = task_path.replace('\\', '/')
+        else:
+            target_dir = os.path.join(task_path, selected_subdir).replace('\\', '/')
 
         # Set header label for the tree
         self.file_tree_model.setHorizontalHeaderLabels([f"{self.current_task} / {selected_subdir}"])

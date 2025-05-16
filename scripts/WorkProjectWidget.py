@@ -395,7 +395,7 @@ class CopyToFileDialog(QDialog):
     def __init__(self, src_path):
         super().__init__()
         self.src_path = src_path
-        self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo', 'ABC': 'alembic', 'VDB': 'vdb'}
+        self.assets = {'贴图': 'tex', '参考': 'reference', '三维': 'geo', 'ABC': 'alembic', 'VDB': 'vdb'}
         self.text = ""
 
         self.setWindowTitle("复制到文件")
@@ -561,8 +561,8 @@ class OpenSubDialog(QDialog):
         self.setWindowTitle("打开资产文件夹")
         self.layout = QVBoxLayout()
         self.setWindowIcon(QIcon(os.path.join(Base_Dir, "../icon", "version.ico")))
-        self.assets = {'贴图': 'tex', '参考': 'reference', '缓存': 'geo', 'ABC': 'alembic', 'VDB': 'vdb'}
-        self.current_file = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task
+        self.assets = {'贴图': 'tex', '参考': 'reference', '三维': 'geo', 'ABC': 'alembic', 'VDB': 'vdb'}
+        self.current_file = gv.project + "/2.Project/" + gv.user + "/" + gv.task
 
         self.path_label = QLabel()
         self.layout.addWidget(self.path_label)
@@ -804,7 +804,7 @@ class WorkProjectWidget(DraggableDroppableWidget):
         btn_open_project.setToolTip("打开文件")
         btn_open_project.setMinimumSize(QSize(40, 40))
         btn_open_project.pressed.connect(
-            lambda: os.startfile(f'{Global_Vars.Project}/2.Project/{Global_Vars.User}/{Global_Vars.task}'))
+            lambda: os.startfile(f'{gv.project}/2.Project/{gv.user}/{gv.task}'))
 
         btn_update = QPushButton()
         btn_update.setIcon(QIcon(os.path.join(Base_Dir, "../icon", "updata.ico")))
@@ -937,6 +937,7 @@ class WorkProjectWidget(DraggableDroppableWidget):
 
             self.list_project.addItem(item)
         gv.log = datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + '文件列表加载成功'
+        gv.task = self.project_combo.currentText()
 
     def create_new_project(self):
         """

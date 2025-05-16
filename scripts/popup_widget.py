@@ -8,13 +8,15 @@ from PySide2.QtWidgets import (
 )
 from PySide2.QtCore import Qt, QRect, QPoint, QEvent, QSize, QUrl
 from PySide2.QtGui import (QColor, QPalette, QFont, QCursor, QDragEnterEvent,
-                           QDragLeaveEvent, QDropEvent, QDesktopServices)  # 导入事件 和 QDesktopServices
+                           QDragLeaveEvent, QDropEvent, QDesktopServices, QIcon)  # 导入事件 和 QDesktopServices
 
 # 从 scripts 导入 Function 和 Global_Vars 模块
 from scripts import Function, Global_Vars
 # 从 address_trans 导入 Drag_Function 类
 from scripts.address_trans import Drag_Function
 from scripts.file_exchange_online import DraggableListWidget
+
+Base_Dir = os.path.dirname(os.path.abspath(__file__))
 
 
 class Win11StylePopup(QWidget):
@@ -215,10 +217,22 @@ class Win11StylePopup(QWidget):
                 if notes:
                     history_text += f" ({notes})"  # 如果有备注则添加
 
-                list_item = QListWidgetItem(history_text)
-                # 将原始文件路径存储在 UserRole 中，用于双击打开文件夹
-                list_item.setData(Qt.UserRole, log_entry.get('path'))
-                self.history_list.addItem(list_item)
+                if Global_Vars.User in users:
+
+                    list_item = QListWidgetItem(history_text)
+                    # print(filename.endswith())
+                    if filename.split('.')[-1] in ['fbx', 'abc', 'rs', 'obj']:
+                        item_icon = QIcon(os.path.join(Base_Dir, "../icon", "3d.ico"))
+                    elif filename.split('.')[-1] in ['jpg', 'exr', 'hdr', 'png', 'tif', 'jpeg']:
+                        item_icon = QIcon(os.path.join(Base_Dir, "../icon", "image.ico"))
+                    else:
+                        item_icon = QIcon(os.path.join(Base_Dir, "../icon", "edit_file.ico"))
+                    list_item.setIcon(item_icon)
+                    # 将原始文件路径存储在 UserRole 中，用于双击打开文件夹
+                    list_item.setData(Qt.UserRole, log_entry.get('path'))
+                    self.history_list.addItem(list_item)
+                else:
+                    pass
 
         except Exception as e:
             print(f"从 {log_file} 加载历史记录时出错: {e}")
@@ -268,31 +282,17 @@ class Win11StylePopup(QWidget):
 
     def focusOutEvent(self, event: QEvent):
         """当窗口失去焦点时自动隐藏"""
-        super().focusOutEvent(event)
 
-        # 检查窗口当前是否仍然可见
-        # Check if the window is still visible
-        if self.isVisible():
-            print(f"调试：窗口失去焦点 (原因: {event.reason()}), 尝试隐藏...")
-            # Debug: Window lost focus (reason: ...), attempting to hide...
-            self.hide()
-            print(f"调试：窗口隐藏后是否可见: {self.isVisible()}")
-            # Debug: Is window visible after hiding: ...
-        else:
-            print("调试：窗口失去焦点，但它已经不可见。")
-            # Debug: Window lost focus, but it was already hidden.
+        super().focusOutEvent(event)
+        # self.hide()
 
     def mousePressEvent(self, event: QEvent):
-        """重写鼠标按下事件，点击内部时不关闭"""
-        # 检查点击是否在窗口矩形内
+        """重写鼠标按下事件，实现点击窗口内部关闭"""
         if event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
-            # 点击内部，接受事件，但不做任何操作 (不调用 self.hide())
+            self.hide()
             event.accept()
-            print('yes')
         else:
-            # 对于其他鼠标按钮或理论上的外部点击（主要由 focusOutEvent 处理），调用父类
             super().mousePressEvent(event)
-            print('no')
 
     def resizeEvent(self, event):
         """当窗口大小调整时，确保容器也调整大小"""
