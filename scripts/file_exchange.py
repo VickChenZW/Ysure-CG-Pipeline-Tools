@@ -1,7 +1,7 @@
 import os, json
 from PySide2.QtWidgets import (QWidget, QListWidget,
-                               QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton, QListWidgetItem
-                               )
+                            QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QPushButton, QListWidgetItem
+                            )
 from PySide2.QtGui import QIcon, Qt, QDrag
 from PySide2.QtCore import Qt, QSize, QUrl, QMimeData, QPoint
 from scripts import Function, Global_Vars

@@ -10,8 +10,8 @@ from PySide2.QtCore import (QSize, Qt, QMimeData, QUrl, QPoint,
                             QSortFilterProxyModel, Signal, QModelIndex, QObject
                             )
 from PySide2.QtGui import (QIcon, QDrag, QStandardItemModel,
-                           QStandardItem, QColor, QDragEnterEvent,
-                           QDragLeaveEvent, QDropEvent)
+                        QStandardItem, QColor, QDragEnterEvent,
+                        QDragLeaveEvent, QDropEvent)
 from PySide2.QtWidgets import (
     QLabel, QTabWidget, QWidget, QPushButton,
     QHBoxLayout, QVBoxLayout, QLineEdit, QListWidget,
@@ -660,7 +660,7 @@ class OpenSubDialog(QDialog):
 class FlipbookDialog(QDialog):
     def __init__(self, content):
         super().__init__()
-        self.flip_path = Global_Vars.Project + "/2.Project/" + Global_Vars.User + "/" + Global_Vars.task + "/flipbook/" + content
+        self.flip_path = gv.project + "/2.Project/" + gv.user + "/" + gv.task + "/flipbook/" + content
         self.content = content
         self.setWindowTitle("拍屏文件")
         self.layout = QVBoxLayout()
@@ -914,7 +914,8 @@ class WorkProjectWidget(DraggableDroppableWidget):
         if os.path.exists(path):
             projs = os.listdir(path)
             for proj in projs:
-                self.project_combo.addItem(proj)
+                if os.path.isdir(os.path.isdir(os.path.join(path, proj))):
+                    self.project_combo.addItem(proj)
             self.process_json.change_name(self.project_combo.currentText())
 
     def load_projects(self):
@@ -1077,7 +1078,8 @@ class WorkProjectWidget(DraggableDroppableWidget):
         if os.path.exists(path):
             projs = os.listdir(path)
             for proj in projs:
-                self.project_combo.addItem(proj)
+                if os.path.isdir(os.path.join(path, proj)):
+                    self.project_combo.addItem(proj)
         self.project_combo.setCurrentIndex(index)
         self.process_json.change_name(self.project_combo.currentText())
 

@@ -14,8 +14,7 @@ class Drag_Function(QLabel):
         self.setAcceptDrops(True)
         self.setText("拖动到此处")
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                                   color : #747474;''')
+        self.setStyleSheet('''background : rgba(200,200,200,0.1); color : #747474;''')
 
 
     def dragEnterEvent(self, event:QDragEnterEvent) -> None:
@@ -32,8 +31,7 @@ class Drag_Function(QLabel):
 
 
     def dragLeaveEvent(self, event:QDragLeaveEvent) -> None:
-        self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                                   color : #747474;''')
+        self.setStyleSheet('''background : rgba(200,200,200,0.1); color : #747474;''')
         self.setText("拖动到此处")
         self.setCursor(Qt.OpenHandCursor)
 
@@ -45,8 +43,7 @@ class Drag_Function(QLabel):
             else:
                 Function.win_2_mac(text)
 
-            self.setStyleSheet('''background : rgba(200,200,200,0.1);
-                                           color : #747474;''')
+            self.setStyleSheet('''background : rgba(200,200,200,0.1); color : #747474;''')
             self.setText("拖动到此处")
 
 class desktop_widget(QMainWindow):

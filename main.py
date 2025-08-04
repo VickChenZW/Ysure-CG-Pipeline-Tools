@@ -15,7 +15,9 @@ from scripts.Project_Manage import ProjectManager
 # from scripts.file_exchange import File_Exchange # 如果不再使用，可以注释掉
 from scripts.Render_List import RenderList
 from scripts.Global_Vars import gv
-from scripts.file_exchange_online import FileSenderWidget
+# from scripts.file_exchange_online import FileSenderWidget
+from scripts.file_exchange_offline import FileSenderWidget
+
 
 from scripts import address_trans, Global_Vars, Function, Temp_update
 # 导入新的 Popup Widget
@@ -25,7 +27,7 @@ from scripts.popup_widget import Win11StylePopup
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 _user = ["Neo", "Vick", "YL", "Jie", "K", "O"]
-about = "制作：Vick   测试版beta v0.3"
+about = "制作：Vick   测试版beta v0.4"
 
 
 class UserChoose(QDialog):
@@ -53,17 +55,11 @@ class Header(QWidget):
     def __init__(self):
         super().__init__()
 
-        # add widgets
-        # logo = QLabel()
-        # logo.setPixmap(QPixmap(os.path.join(base_dir, "icon", "Y.ico")))
-        # logo.setAlignment(Qt.AlignLeft)
-        # logo.setScaledContents(True)
-        # logo.setMaximumSize(QSize(100, 100))
+
         self.logo = QPushButton()
         self.logo.setIcon(QIcon(os.path.join(base_dir, "icon", "Y.ico")))
         self.logo.setIconSize(QSize(80, 80))
-        # logo.setAlignment(Qt.AlignLeft)
-        # logo.setScaledContents(True)
+
         self.logo.setFixedSize(QSize(100, 100))
         self.logo.setStyleSheet("""
             QPushButton {
@@ -192,7 +188,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Ysure 工具组件")
         self.setMinimumSize(QSize(800, 500))
         # 确保图标路径正确
-        icon_path = os.path.join(base_dir, "icon", "Y_black.ico")
+        icon_path = os.path.join(base_dir, "icon", "Y.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
@@ -257,7 +253,7 @@ class MainWindow(QMainWindow):
         # --- 系统托盘图标设置 ---
         self.tray_icon = QSystemTrayIcon(self)
         # 使用一个存在的图标，例如 Y_black.ico
-        tray_icon_path = os.path.join(base_dir, "icon", "Y_black.ico")
+        tray_icon_path = os.path.join(base_dir, "icon", "Y.ico")
         if os.path.exists(tray_icon_path):
             self.tray_icon.setIcon(QIcon(tray_icon_path))
         else:
@@ -372,8 +368,6 @@ class MainWindow(QMainWindow):
         # 在退出前执行必要的清理工作
         if hasattr(self, 'clip_plane') and self.clip_plane:
             self.clip_plane.close_widget()  # 关闭悬浮窗
-        if hasattr(self, 'file_exchange') and self.file_exchange:
-            self.file_exchange.disconnect_network()  # 断开网络连接
 
         self.tray_icon.hide()  # 隐藏托盘图标
         QApplication.quit()  # 退出应用程序
@@ -392,8 +386,6 @@ class MainWindow(QMainWindow):
         if self.isHidden():
             self.show()
         self.activateWindow()
-        # if hasattr(self, 'popup_widget') and self.popup_widget.isVisible():
-        #     self.popup_widget.hide()
 
     def show_popup_widget(self):
 

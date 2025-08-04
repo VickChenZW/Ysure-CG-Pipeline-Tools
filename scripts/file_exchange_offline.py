@@ -21,230 +21,14 @@ from PySide2.QtWidgets import (
     QAbstractItemView, QDialog, QDialogButtonBox, # Keep QTableWidget imports for now if needed elsewhere, but remove usage here
     QComboBox, QListWidgetItem
 )
+from scripts.Global_Vars import gv
 
 # --- Configuration ---
 BROADCAST_PORT = 50001
 TCP_PORT = 50003
 BUFFER_SIZE = 4096
 VALID_SUBDIRS = ["geo", "tex", "alembic"]  # Define valid types
-# USER_TIMEOUT_SECONDS = 30 # REMOVED
-# CHECK_TIMEOUT_INTERVAL_MS = 15000 # REMOVED
 
-# --- Network Listener Thread ---
-class NetworkListener(QThread):
-    """
-    后台线程，监听UDP广播和TCP文件信息。
-    """
-    user_discovered = Signal(str, str)
-    connection_status = Signal(str)
-    file_info_received = Signal(dict)
-
-    def __init__(self, tcp_port, user_name):
-        super().__init__()
-        self.tcp_port = tcp_port
-        self.user_name = user_name
-        self.running = False
-        self.tcp_server_socket = None
-        self.udp_socket = None
-        self.my_local_ip = self.get_local_ip()
-        self.broadcast_thread = None
-
-    def run(self):
-        self.running = True
-        self.connection_status.emit(f"正在监听 UDP:{BROADCAST_PORT}, TCP:{self.tcp_port}...")
-        print(f"Network Listener: Starting for user '{self.user_name}'...")
-
-        # UDP Setup
-        self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self.udp_socket.bind(('', BROADCAST_PORT))
-            self.udp_socket.settimeout(1.0)
-        except OSError as e:
-            error_msg = f"错误: 无法绑定 UDP {BROADCAST_PORT}: {e}"
-            print(f"NL: {error_msg}")
-            self.connection_status.emit(error_msg)
-            self.running = False
-            return
-
-        # TCP Setup
-        self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            self.tcp_server_socket.bind(('', self.tcp_port))
-            self.tcp_server_socket.listen(5)
-            self.tcp_server_socket.settimeout(1.0)
-        except OSError as e:
-            error_msg = f"错误: 无法绑定 TCP {self.tcp_port}: {e}"
-            print(f"NL: {error_msg}")
-            self.connection_status.emit(error_msg)
-            self.running = False
-            if self.udp_socket: # Close UDP socket if TCP fails
-                self.udp_socket.close()
-            return
-
-        # Broadcast Setup
-        if not self.my_local_ip:
-            print("NL: Warning - Could not determine local IP.")
-        self.broadcast_thread = threading.Thread(target=self.broadcast_presence, daemon=True)
-        self.broadcast_thread.start()
-        print("NL: Running.")
-
-        # Main Loop
-        while self.running:
-            # UDP Check
-            try:
-                data, addr = self.udp_socket.recvfrom(1024)
-                if not self.running:
-                    break
-                if addr[0] == self.my_local_ip:
-                    continue
-                message = json.loads(data.decode('utf-8'))
-                # Only emit discovery, main widget handles timestamping
-                if message.get('type') == 'discovery' and message.get('username') != self.user_name:
-                    self.user_discovered.emit(message['username'], addr[0])
-            except socket.timeout:
-                pass # Expected timeout, continue loop
-            except Exception as e:
-                 if self.running: # Avoid printing error if stopping
-                     print(f"NL: UDP Error - {e}")
-
-            # TCP Check
-            try:
-                client_socket, client_address = self.tcp_server_socket.accept()
-                if not self.running:
-                    client_socket.close()
-                    break
-                client_thread = threading.Thread(target=self.handle_tcp_client, args=(client_socket, client_address), daemon=True)
-                client_thread.start()
-            except socket.timeout:
-                pass # Expected timeout, continue loop
-            except Exception as e:
-                if self.running: # Avoid printing error if stopping
-                    print(f"NL: TCP Accept Error - {e}")
-
-        # Cleanup
-        print("NL: Stopping...")
-        if self.tcp_server_socket:
-            try:
-                self.tcp_server_socket.close()
-            except Exception:
-                pass # Ignore errors on close
-            self.tcp_server_socket = None
-        if self.udp_socket:
-            try:
-                self.udp_socket.close()
-            except Exception:
-                pass # Ignore errors on close
-            self.udp_socket = None
-        self.connection_status.emit("已断开连接")
-        print("NL: Stopped.")
-
-    def get_local_ip(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0.1)
-        try:
-            s.connect(('10.255.255.255', 1))
-            IP = s.getsockname()[0]
-        except Exception:
-            try:
-                IP = socket.gethostbyname(socket.gethostname())
-            except Exception:
-                IP = '127.0.0.1'
-        finally:
-            s.close()
-        return IP
-
-    def broadcast_presence(self):
-        if not self.my_local_ip:
-            print("NL: Cannot broadcast.")
-            return
-        broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        message = json.dumps({'type': 'discovery', 'username': self.user_name, 'tcp_port': self.tcp_port})
-        broadcast_address = ('<broadcast>', BROADCAST_PORT)
-        print("NL: Broadcast thread started.")
-        while self.running:
-            try:
-                broadcast_socket.sendto(message.encode('utf-8'), broadcast_address)
-            except Exception as e:
-                print(f"NL: Broadcast Error - {e}")
-                time.sleep(10) # Wait longer after error
-                continue # Retry broadcast loop
-            # Broadcast frequency (e.g., every 10 seconds)
-            for _ in range(10):
-                 if not self.running:
-                     break
-                 time.sleep(1)
-            if not self.running:
-                 break # Exit outer loop if stopped
-        broadcast_socket.close()
-        print("NL: Broadcast thread stopped.")
-
-    def handle_tcp_client(self, client_socket, client_address):
-        """Handles incoming TCP connections (only file info expected)."""
-        try:
-            full_data = b""
-            client_socket.settimeout(10.0)
-            while self.running:
-                try:
-                    chunk = client_socket.recv(BUFFER_SIZE)
-                    if not chunk:
-                        break # Connection closed
-                    full_data += chunk
-                    # Basic check for JSON message end
-                    if full_data.strip().endswith(b'}') and full_data.strip().startswith(b'{'):
-                        break
-                except socket.timeout:
-                     if not self.running:
-                         break
-                     print(f"NL: Timeout receiving from {client_address}.")
-                     break # Assume incomplete message on timeout
-
-            if not full_data or not self.running:
-                return # No data or stopped
-
-            try:
-                message_data = json.loads(full_data.decode('utf-8').strip())
-                msg_type = message_data.get('type')
-                sender = message_data.get('sender', 'Unknown')
-
-                if msg_type == 'file_info':
-                    # Validate required fields (including notes now)
-                    if all(k in message_data for k in ('sender', 'filename', 'date', 'full_source_path', 'notes')):
-                        print(f"NL: Received file_info from {sender} for {message_data.get('filename')}")
-                        self.file_info_received.emit(message_data)
-                    else:
-                        print(f"NL: Received invalid file_info from {sender}: Missing fields.")
-                else:
-                    print(f"NL: Unknown TCP type from {client_address}: {msg_type}")
-
-            except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
-                print(f"NL: TCP Decode Error from {client_address}: {e} - Data: {full_data[:200]}")
-            except Exception as e:
-                print(f"NL: Error handling TCP client {client_address}: {e}")
-        finally:
-            try:
-                client_socket.close()
-            except Exception:
-                pass # Ignore errors on close
-
-    def stop(self):
-        print("NL: Stop requested.")
-        self.running = False
-        # Attempt to unblock accept() call
-        if self.tcp_server_socket:
-            try:
-                dummy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                dummy_socket.settimeout(0.5)
-                dummy_socket.connect(('127.0.0.1', self.tcp_port))
-                dummy_socket.close()
-                print("NL: Sent dummy connection.")
-            except Exception as e:
-                print(f"NL: Info - Dummy connection failed: {e}")
-
-# --- Modify Widget (Copied from user's file) ---
 class EditNotesDialog(QDialog):
     """
     编辑notes的Dialog
@@ -302,10 +86,8 @@ class DraggableListWidget(QListWidget):
 
 # --- Main Widget ---
 class FileSenderWidget(QWidget):
-    # project_root_changed = Signal(str) # Signal removed as button is removed
+
     show_message_box = Signal(str, str, str) # icon_type, title, text
-    # Signal removed as copy functionality is removed
-    # ask_copy_file = Signal(dict)
 
     def __init__(self, user_name, project_root, current_task=None, parent=None): # Added current_task
         super().__init__(parent)
@@ -316,14 +98,8 @@ class FileSenderWidget(QWidget):
         self.log_file = None
         self.is_connected = False
 
-        # Network Listener Setup
-        self.network_listener = NetworkListener(TCP_PORT, self.user_name)
-        self.network_listener.user_discovered.connect(self.add_user)
-        self.network_listener.connection_status.connect(self.update_connection_status)
-        self.network_listener.file_info_received.connect(self.handle_incoming_file_info)
-
         # Connect internal signals
-        self.show_message_box.connect(self._show_message_box_slot)
+        # self.show_message_box.connect(self._show_message_box_slot)
 
         # UI Setup
         self._setup_ui()
@@ -339,16 +115,6 @@ class FileSenderWidget(QWidget):
         """Creates the UI elements."""
         main_layout = QVBoxLayout(self)  # Use QVBoxLayout as main layout
         self.setLayout(main_layout)
-
-        # --- Top Section: Connection & Project ---
-        top_layout = QHBoxLayout()
-        self.connect_button = QPushButton("🔌 连接")
-        self.connect_button.clicked.connect(self.toggle_connection)
-        self.connection_status_label = QLabel("未连接")
-        self.connection_status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        top_layout.addWidget(self.connect_button)
-        top_layout.addWidget(self.connection_status_label, 1)
-        main_layout.addLayout(top_layout)
 
         # Project Label (Button removed)
         project_layout = QHBoxLayout()
@@ -374,10 +140,10 @@ class FileSenderWidget(QWidget):
         user_list_layout = QVBoxLayout(user_list_widget_container)
         user_list_layout.setContentsMargins(0, 0, 0, 0)  # Remove layout margins
         user_header_layout = QHBoxLayout()
-        user_header_layout.addWidget(QLabel("在线用户:"))
+        user_header_layout.addWidget(QLabel("使用用户:"))
         self.refresh_users_button = QPushButton("🔄")  # Refresh button
         self.refresh_users_button.setFixedSize(25, 25)  # Make button small
-        self.refresh_users_button.setToolTip("刷新在线用户列表")
+        self.refresh_users_button.setToolTip("刷新使用用户列表")
         self.refresh_users_button.clicked.connect(self._refresh_user_list)
         user_header_layout.addWidget(self.refresh_users_button)
         user_header_layout.addStretch()  # Push button to the right
@@ -463,23 +229,16 @@ class FileSenderWidget(QWidget):
         self.user_name = user_name
         self.current_task = task_name # Update task
 
-        was_connected = self.is_connected
-        if self.is_connected:
-            self.toggle_connection() # Disconnect if running
-
-        # Update listener's internal username *before* potentially restarting
-        self.network_listener.user_name = self.user_name
 
         # Re-init UI and logs only if project changed or was previously None
         if project_changed or self.project_root is None:
-             self.initialize_project_root(new_project_root) # This will also update the tree view
+            self.initialize_project_root(new_project_root) # This will also update the tree view
+            self._refresh_user_list()
         elif user_changed or task_changed:
              # If only user or task changed, update label and repopulate tree
-             self.file_list_label.setText(f"文件 ({self.user_name} / {self.current_task or '未选任务'}):")
-             self.update_file_tree_view() # Repopulate tree for new user/task
+            self.file_list_label.setText(f"文件 ({self.user_name} / {self.current_task or '未选任务'}):")
+            self.update_file_tree_view() # Repopulate tree for new user/task
 
-        if was_connected:
-            QTimer.singleShot(500, self.toggle_connection) # Reconnect later
 
     def set_current_task(self, task_name):
         """Public method specifically for updating the task and refreshing the view."""
@@ -488,83 +247,6 @@ class FileSenderWidget(QWidget):
             self.current_task = task_name
             self.file_list_label.setText(f"文件 ({self.user_name} / {self.current_task or '未选任务'}):")
             self.update_file_tree_view() # Refresh tree view for the new task
-
-
-    def connect_network(self):
-        if not self.is_connected:
-            self.toggle_connection()
-
-    def disconnect_network(self):
-        if self.is_connected:
-            self.toggle_connection()
-
-    # --- Internal Methods ---
-    def toggle_connection(self):
-        """Starts or stops the network listener thread."""
-        if not self.is_connected:
-            if not self.project_root:
-                QMessageBox.warning(self, "需要项目", "请先设置项目根目录。")
-                return
-            self.update_connection_status("正在连接...")
-            self.connect_button.setEnabled(False)
-            self.user_list_widget.clear()
-            self.users.clear()
-            if not self.network_listener.isRunning():
-                self.network_listener.start()
-            QTimer.singleShot(1000, self._check_connection_started) # Check status after delay
-        else:
-            self.update_connection_status("正在断开连接...")
-            self.connect_button.setEnabled(False)
-            if self.network_listener.isRunning():
-                self.network_listener.stop()
-            QTimer.singleShot(500, self._check_connection_stopped) # Ensure UI updates after stop signal
-
-    def _check_connection_started(self):
-        """Callback to update button state after attempting connection."""
-        if self.network_listener.isRunning():
-            if not self.is_connected: # If status signal hasn't updated yet
-                 self.is_connected = True
-                 self.connect_button.setText("🔌 断开连接")
-                 self.update_connection_status("连接成功 (等待监听...)") # Intermediate status
-            self.connect_button.setEnabled(True)
-        else: # Failed to start or stopped immediately
-            self.is_connected = False
-            self.connect_button.setText("🔌 连接")
-            self.connect_button.setEnabled(True)
-            if "错误" not in self.connection_status_label.text(): # Check label text
-                 self.update_connection_status("连接失败")
-
-    def _check_connection_stopped(self):
-         """Callback to ensure UI reflects disconnected state."""
-         if not self.network_listener.isRunning():
-              self.is_connected = False
-              self.connect_button.setText("🔌 连接")
-              self.connect_button.setEnabled(True)
-              self.user_list_widget.clear()
-              self.users.clear()
-              # Ensure status label reflects disconnection if signal didn't fire correctly
-              if "已断开连接" not in self.connection_status_label.text():
-                  self.update_connection_status("已断开连接")
-
-    @Slot(str)
-    def update_connection_status(self, status):
-        """Updates the status label and connection state."""
-        self.connection_status_label.setText(status)
-        # Update internal state based on status message content
-        if "正在监听" in status or "连接成功" in status: # Added "连接成功"
-            if not self.is_connected:
-                 self.is_connected = True
-                 self.connect_button.setText("🔌 断开连接")
-                 self.connect_button.setEnabled(True) # Ensure enabled
-        elif "已断开连接" in status or "错误" in status or "失败" in status:
-             if self.is_connected:
-                 self.is_connected = False
-                 self.connect_button.setText("🔌 连接")
-                 self.connect_button.setEnabled(True) # Ensure enabled
-                 self.user_list_widget.clear()
-                 self.users.clear()
-
-    # Removed select_project_root as button is removed
 
     def initialize_project_root(self, directory):
          """Sets up the application based on the selected project root."""
@@ -576,8 +258,6 @@ class FileSenderWidget(QWidget):
          if directory and os.path.isdir(os.path.join(directory, "2.Project")):
              self.project_root = directory
              self.project_label.setText(f"项目: {os.path.basename(self.project_root)}") # Update label
-             self.update_connection_status("项目已设置。")
-             # Update file list label with current task (might be None initially)
              self.file_list_label.setText(f"文件 ({self.user_name} / {self.current_task or '未选任务'}):")
              self.update_file_tree_view() # Populate file tree using current task
              self.setup_log_file() # Setup log file
@@ -586,7 +266,7 @@ class FileSenderWidget(QWidget):
          else:
              self.project_root = None
              self.project_label.setText("项目: 未设置") # Update label
-             self.update_connection_status("项目无效或未设置。")
+             # self.update_connection_status("项目无效或未设置。")
              self.log_file = None
              self.send_file_info_button.setEnabled(False)
 
@@ -750,23 +430,16 @@ class FileSenderWidget(QWidget):
             print(f"Error loading history from {self.log_file}: {e}")
 
 
-    @Slot(str, str)
-    def add_user(self, username, ip_address):
-        """Adds a discovered user to the list if not already present."""
-        if username != self.user_name and username not in self.users:
-            self.users[username] = {'ip': ip_address, 'tcp_port': TCP_PORT}
-            items = self.user_list_widget.findItems(username, Qt.MatchExactly)
-            if not items:
-                self.user_list_widget.addItem(username)
-                print(f"Added user: {username} ({ip_address})")
-
-    # --- ADDED: Slot for refresh button ---
     @Slot()
     def _refresh_user_list(self):
         """Clears the user list. Users will reappear on next discovery broadcast."""
-        print("Refreshing user list...")
-        self.users.clear()
         self.user_list_widget.clear()
+        if os.path.exists(os.path.join(gv.project, ('2.Project'))):
+            print(os.path.join(gv.project, ('2.Project')))
+            for user in os.listdir(os.path.join(gv.project, ('2.Project'))):
+                if not os.path.basename(user).startswith('.'):
+                    self.user_list_widget.addItem(os.path.basename(user))
+        self.load_history()
 
     @Slot()
     def on_user_or_file_selected(self):
@@ -785,9 +458,6 @@ class FileSenderWidget(QWidget):
     # --- Restored send_file_info to include notes dialog ---
     def send_file_info(self):
         """Sends the selected file's information (including notes) to the chosen user."""
-        if not self.is_connected:
-            self.show_message_box.emit("warning", "未连接", "请先连接网络。")
-            return
 
         selected_user_items = self.user_list_widget.selectedItems()
         selected_file_indexes = self.file_tree_view.selectedIndexes()
@@ -807,15 +477,6 @@ class FileSenderWidget(QWidget):
 
         recipient_name = selected_user_items[0].text()
 
-        # Check if recipient is online before showing dialog
-        if recipient_name not in self.users:
-            self.show_message_box.emit("warning", "用户离线?", f"用户 '{recipient_name}' 当前不在线或已超时。\n请刷新用户列表或等待其重新连接。")
-            return
-
-        recipient_info = self.users.get(recipient_name)
-        recipient_ip = recipient_info['ip']
-        recipient_port = recipient_info.get('tcp_port', TCP_PORT)
-
         # Show notes dialog
         dialog = EditNotesDialog("", self) # Pass self as parent
         if dialog.exec_() == QDialog.Accepted:
@@ -829,9 +490,6 @@ class FileSenderWidget(QWidget):
                 'notes': notes # Include notes
             }
 
-            # Send in background thread
-            thread = threading.Thread(target=self._send_tcp_message, args=(recipient_ip, recipient_port, file_info_data, recipient_name), daemon=True)
-            thread.start()
 
             # Log locally (using the user's log format)
             self.log_file_info("Sent", recipient_name, file_info_data)
@@ -840,85 +498,74 @@ class FileSenderWidget(QWidget):
         else:
             QMessageBox.information(self, "提示", "发送已取消!")
 
-
-    def _send_tcp_message(self, ip, port, data, recipient_name_log):
-        """Worker function to send TCP message (file info) in a background thread."""
-        print(f"DEBUG: Attempting to send to {ip}:{port} - Type: {data.get('type')}")
-        success = False
-        error_msg = ""
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5.0)
-            sock.connect((ip, port))
-            sock.sendall(json.dumps(data).encode('utf-8') + b'\n') # Add newline
-            sock.close()
-            print(f"DEBUG: Send successful to {ip}:{port}")
-            success = True
-        except socket.timeout:
-            error_msg = f"连接用户 {recipient_name_log} 超时。"
-            print(f"Timeout sending to {ip}:{port}")
-        except ConnectionRefusedError:
-            error_msg = f"用户 {recipient_name_log} 拒绝连接。"
-            print(f"Connection refused by {ip}:{port}")
-            # Remove user from list if connection refused
-            QTimer.singleShot(0, lambda: self._remove_user(recipient_name_log))
-        except Exception as e:
-            error_msg = f"无法发送消息给 {recipient_name_log}: {e}"
-            print(f"Error sending to {ip}:{port}: {e}")
-
-        if not success and error_msg:
-             self.show_message_box.emit("critical", "发送错误", error_msg)
-        print(f"DEBUG: Send attempt finished. Success: {success}")
-
-    @Slot(str)
-    def _remove_user(self, username):
-        """Removes a user from the internal dict and UI list."""
-        print(f"Removing user '{username}' due to connection error.")
-        if username in self.users:
-            del self.users[username]
-        items = self.user_list_widget.findItems(username, Qt.MatchExactly)
-        for item in items:
-            self.user_list_widget.takeItem(self.user_list_widget.row(item))
-
-
-    @Slot(dict)
-    def handle_incoming_file_info(self, file_info_data):
-        """Handles received file information."""
-        sender = file_info_data.get("sender")
-        filename = file_info_data.get("filename")
-        date_sent = file_info_data.get("date")
-        source_path = file_info_data.get("full_source_path")
-        notes = file_info_data.get("notes", "") # Get notes
-
-        # Log reception (using the user's log format)
-        # self.log_file_info("Received", sender, file_info_data)
-        self.load_history() # Refresh history list after logging
-
-        # Display info in a simple message box, including notes
-        display_text = (
-            f"收到来自 {sender} 的文件信息:\n\n"
-            f"文件名: {filename}\n"
-            f"发送日期: {date_sent}\n"
-            f"源路径: {source_path}\n"
-            f"备注: {notes}" # Display notes
-        )
-        print(f"Displaying received info: {display_text}") # Debug
-        # Use signal to show message box safely
-        self.show_message_box.emit("information", "收到文件信息", display_text)
-
-
-    @Slot(str, str, str)
-    def _show_message_box_slot(self, icon_type, title, text):
-        """Slot to display QMessageBox from signals."""
-        icon_map = { "warning": QMessageBox.Warning, "critical": QMessageBox.Critical, "information": QMessageBox.Information }
-        # Make message box slightly wider
-        msgBox = QMessageBox(self)
-        msgBox.setIcon(icon_map.get(icon_type, QMessageBox.NoIcon))
-        msgBox.setWindowTitle(title)
-        msgBox.setText(text)
-        msgBox.setStandardButtons(QMessageBox.Ok)
-        msgBox.setStyleSheet("QLabel{min-width: 400px;}") # Adjust min-width as needed
-        msgBox.exec_()
+    # def load_history(self):
+    #     """从日志文件加载历史记录到列表"""
+    #     self.history_list.clear()
+    #     log_file = self.get_log_file_path()
+    #
+    #     if not log_file or not os.path.exists(log_file):
+    #         print("无法加载历史记录：日志文件路径未设置或文件不存在。")
+    #         return
+    #
+    #     try:
+    #         entries = []
+    #         with open(log_file, 'r', encoding='utf-8') as f:
+    #             for line in f:
+    #                 try:
+    #                     # 跳过空行
+    #                     stripped_line = line.strip()
+    #                     if not stripped_line:
+    #                         continue
+    #                     log_entry = json.loads(stripped_line)
+    #                     entries.append(log_entry)
+    #                 except json.JSONDecodeError:
+    #                     print(f"跳过历史日志中的无效行: {line.strip()}")
+    #
+    #         # 按时间戳降序排序（最新的在前面）
+    #         entries.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    #
+    #         # 添加到列表控件
+    #         for log_entry in entries:
+    #             users = log_entry.get("users", ["N/A", "N/A"])
+    #             filename = log_entry.get("filename", "N/A")
+    #             send_time_str = log_entry.get("date_sent", "N/A")
+    #             # 尝试解析时间并格式化
+    #             try:
+    #                 send_time_dt = datetime.datetime.fromisoformat(send_time_str)
+    #                 display_time = send_time_dt.strftime("%m-%d %H:%M")  # 月-日 时:分
+    #             except (ValueError, TypeError):
+    #                 display_time = send_time_str  # 如果解析失败，显示原始字符串
+    #
+    #             notes = log_entry.get("notes", "")  # 默认为空字符串
+    #
+    #             # 确保 users 列表至少有两个元素
+    #             sender = users[0] if len(users) > 0 else "N/A"
+    #             recipient = users[1] if len(users) > 1 else "N/A"
+    #
+    #             # 格式化显示文本
+    #             history_text = f"{display_time} [{sender}➔{recipient}] {filename}"
+    #             if notes:
+    #                 history_text += f" ({notes})"  # 如果有备注则添加
+    #
+    #             if Global_Vars.User in users:
+    #
+    #                 list_item = QListWidgetItem(history_text)
+    #                 # print(filename.endswith())
+    #                 if filename.split('.')[-1] in ['fbx', 'abc', 'rs', 'obj']:
+    #                     item_icon = QIcon(os.path.join(Base_Dir, "../icon", "3d.ico"))
+    #                 elif filename.split('.')[-1] in ['jpg', 'exr', 'hdr', 'png', 'tif', 'jpeg']:
+    #                     item_icon = QIcon(os.path.join(Base_Dir, "../icon", "image.ico"))
+    #                 else:
+    #                     item_icon = QIcon(os.path.join(Base_Dir, "../icon", "edit_file.ico"))
+    #                 list_item.setIcon(item_icon)
+    #                 # 将原始文件路径存储在 UserRole 中，用于双击打开文件夹
+    #                 list_item.setData(Qt.UserRole, log_entry.get('path'))
+    #                 self.history_list.addItem(list_item)
+    #             else:
+    #                 pass
+    #
+    #     except Exception as e:
+    #         print(f"从 {log_file} 加载历史记录时出错: {e}")
 
     @Slot(QListWidgetItem) # Connect to the history list's itemDoubleClicked
     def locate_history_source_file(self, item):
@@ -960,58 +607,3 @@ class FileSenderWidget(QWidget):
              print("No source path data found for history item.")
 
 
-    def stop_listener_thread(self):
-         """Public method to ensure listener stops."""
-         print("FileSenderWidget: stop_listener_thread called.")
-         if self.network_listener.isRunning():
-             self.network_listener.stop()
-
-
-# # --- Example Usage (Standalone Test) ---
-# if __name__ == '__main__':
-#     class DummyGlobalVar:
-#         user = "TestUser"
-#         project = r"C:/temp/chat_test_project"
-#         task = "Task01" # Add dummy task for testing
-#
-#     print("Running FileSenderWidget standalone for testing...")
-#     test_gv = DummyGlobalVar()
-#     test_user = test_gv.user
-#     test_project_root = test_gv.project.replace('\\','/')
-#     test_task = test_gv.task # Get task for init
-#
-#     dummy_project_2 = os.path.join(test_project_root, "2.Project")
-#     dummy_user_a_geo = os.path.join(dummy_project_2, "TestUser", "Task01", "geo")
-#     dummy_user_a_tex = os.path.join(dummy_project_2, "TestUser", "Task02", "tex")
-#     os.makedirs(dummy_user_a_geo, exist_ok=True)
-#     os.makedirs(dummy_user_a_tex, exist_ok=True)
-#     with open(os.path.join(dummy_user_a_geo, "model_v01.ma"), "w") as f: f.write("dummy geo")
-#     with open(os.path.join(dummy_user_a_tex, "diffuse.tx"), "w") as f: f.write("dummy tex")
-#     print(f"Created dummy structure in: {test_project_root}")
-#
-#     app = QApplication(sys.argv)
-#     main_win = QtWidgets.QMainWindow()
-#     main_win.setWindowTitle("File Sender Test Container")
-#     main_win.setGeometry(50, 50, 700, 600) # Smaller window for simpler UI
-#     # Pass the initial task to the widget constructor
-#     sender_widget = FileSenderWidget(user_name=test_user, project_root=test_project_root, current_task=test_task)
-#     main_win.setCentralWidget(sender_widget)
-#
-#     # Example of how parent might update task
-#     def update_task_later():
-#          print("\n--- Simulating task update from parent ---")
-#          new_task = "Task02"
-#          # Call the specific method to update the task
-#          sender_widget.set_current_task(new_task)
-#
-#     QTimer.singleShot(5000, update_task_later) # Simulate task change after 5 seconds
-#
-#
-#     def close_app():
-#          print("Test Container: Closing.")
-#          sender_widget.stop_listener_thread()
-#          app.quit()
-#     main_win.closeEvent = lambda event: close_app()
-#
-#     main_win.show()
-#     sys.exit(app.exec_())

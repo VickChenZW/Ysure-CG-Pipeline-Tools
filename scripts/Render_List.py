@@ -1,9 +1,11 @@
 from PySide2.QtWidgets import (QWidget, QHBoxLayout, QListWidget,
-                               QVBoxLayout, QLabel, QListWidgetItem,
-                               QLineEdit, QMenu, QAction, QPushButton, QTreeWidget, QTreeWidgetItem)
+                            QVBoxLayout, QLabel, QListWidgetItem,
+                            QLineEdit, QMenu, QAction, QPushButton, QTreeWidget, QTreeWidgetItem)
 from PySide2.QtCore import Qt, QMimeData, QUrl, QPoint, QSize
 from PySide2.QtGui import QDrag, QIcon, QDropEvent, QDragLeaveEvent, QColor, QBrush
-from  scripts import Global_Vars
+from scripts import Global_Vars
+from scripts.Global_Vars import gv
+
 import os, re, json
 from datetime import datetime
 from pathlib import Path
@@ -163,8 +165,8 @@ class RenderList(QWidget):
         self.list_render.clear()
         file_list = []
         list_items = {}
-        render_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task,
-                                   "render").replace('\\', "/")
+        render_path = os.path.join(gv.project, "2.Project", gv.user, gv.task, "render").replace('\\', "/")
+        print(render_path)
         if os.path.exists(render_path) :
             json_path = self.create_Info()
             if os.path.exists(json_path):
@@ -246,8 +248,7 @@ class RenderList(QWidget):
                     json.dump(infos, f, ensure_ascii=False, indent=4)
 
     def create_Info(self):
-        info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render",
-                                 "metadata").replace('\\', "/")
+        info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render", "metadata").replace('\\', "/")
         json_path = os.path.join(info_path, "render_info.json")
         if not os.path.exists(info_path):
             os.makedirs(info_path)
@@ -345,8 +346,7 @@ class RenderList(QWidget):
 
     def change_note(self):
         name = self.label_project.property("content")
-        info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render",
-                                 "metadata").replace('\\', "/")
+        info_path = os.path.join(Global_Vars.Project, "2.Project", Global_Vars.User, Global_Vars.task, "render", "metadata").replace('\\', "/")
         json_path = os.path.join(info_path, "render_info.json")
         value = self.label_describe.text()
         if not value is None:
